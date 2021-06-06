@@ -1,0 +1,15 @@
+{
+  "name": "mentor-bot",
+  "version": "1.0.0",
+  "description": "A bot for notifying mentors that a user calls for aid!",
+  "main": "index.js",
+  "type": "module",
+  "repository": "https://github.com/Earthmark/mentor-bot",
+  "author": "Daniel Miller (Earthmark) <earthmark.miller@gmail.com>",
+  "license": "MIT",
+  "private": false,
+  "dependencies": {
+    "discord.js": "^12.5.3",
+    "ws": "^7.4.6"
+  }
+}
