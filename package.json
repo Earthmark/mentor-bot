@@ -10,6 +10,8 @@
   "private": false,
   "dependencies": {
     "discord.js": "^12.5.3",
+    "dotenv": "^10.0.0",
+    "js-yaml": "^4.1.0",
     "ws": "^7.4.6"
   }
 }

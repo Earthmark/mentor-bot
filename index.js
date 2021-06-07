@@ -1,33 +1,68 @@
 import http from "http";
-import { Client } from "discord.js";
+import Discord from "discord.js";
 import Websocket from "ws";
+import dotenv from "dotenv";
 
-const server = http.createServer();
-const mentorWss = new Websocket.Server({ noServer: true });
+dotenv.config();
+
+const client = new Discord.Client();
+
+await client.login(process.env.BOT_TOKEN);
+
+const broadcastChannel = await client.channels.fetch('851286410237313028');
+if (!broadcastChannel.isText()) {
+  throw "Bound channel was not a text channel.";
+}
+
 const menteeWss = new Websocket.Server({ noServer: true });
 
-mentorWss.on('connection', function(ws) {
-  ws.on('message', function msg(msg) {
-    console.log(msg);
-  })
-  console.log("Got Mentor");
+function parseHelpRequest(req) {
+  const url = new URL(req.url, 'http://example.com');
+
+  const user = {
+    name: url.searchParams.get('name'),
+    session: url.searchParams.get('session'),
+    language: url.searchParams.get('language'),
+    description: url.searchParams.get('description'),
+  }
+
+  return user;
+}
+
+menteeWss.on('connection', function newConnection(ws, _, req) {
+  const user = parseHelpRequest(req);
+
+  ws.on('message', async function GotMessage(msg) {
+    const embed = new Discord.MessageEmbed()
+    .setTitle(`Assistance requested`)
+    .addFields(
+      { name: "User", value: user.name, inline: true },
+      { name: "Language", value: user.language, inline: true },
+      { name: "Description", value: user.description },
+      { name: "Session", value: user.session },
+    )
+    .setTimestamp();
+
+    const sent = await broadcastChannel.send(embed);
+    await sent.react('✅');
+    const reactions = await sent.awaitReactions((reaction, user) => {
+      return reaction.emoji.name === '✅' && user.id !== sent.author.id;
+    }, { max: 1, time: 60000, errors: ["time"] });
+    const reacterId = reactions.first().users.cache.find(user => !user.bot);
+
+    const requestClaimed = new Discord.MessageEmbed(embed)
+      .setTitle(`Mentor On Site`)
+      .addField('Responding Mentor', `${reacterId}`);
+    await sent.edit(requestClaimed);
+  });
 });
 
-menteeWss.on('connection', function(ws) {
-  ws.on('message', function msg(msg) {
-    console.log(msg);
-  })
-  console.log("Got Mentee");
-});
-
+const server = http.createServer();
 server.on('upgrade', function upgrade(request, socket, head) {
-  if (request.url == '/mentor') {
-    mentorWss.handleUpgrade(request, socket, head, function done(ws) {
-      mentorWss.emit('connection', ws, request);
-    })
-  } else if (request.url == '/mentee') {
+  const url = new URL(request.url, 'http://example.com');
+  if (url.pathname == '/mentee') {
     menteeWss.handleUpgrade(request, socket, head, function done(ws) {
-      menteeWss.emit('connection', ws, request);
+      menteeWss.emit('connection', ws, socket, request);
     })
   } else {
     socket.destroy();
@@ -35,15 +70,3 @@ server.on('upgrade', function upgrade(request, socket, head) {
 });
 
 server.listen(8080);
-
-const client = new Client();
-
-client.on('ready', () => {
-  console.log(`Ready! ${client.user?.tag}`);
-});
-
-client.on('message', msg => {
-  if (msg.content === 'ping') {
-    msg.reply('Pong!');
-  }
-});
