@@ -8,6 +8,13 @@
   "author": "Daniel Miller (Earthmark) <earthmark.miller@gmail.com>",
   "license": "MIT",
   "private": false,
+  "engines": {
+    "yarn": ">=1.0.0 <2.0.0"
+  },
+  "scripts": {
+    "deploy": "gcloud app deploy",
+    "start": "node index.js"
+  },
   "dependencies": {
     "discord.js": "^12.5.3",
     "dotenv": "^10.0.0",
