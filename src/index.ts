@@ -159,19 +159,30 @@ app.post("/mentee/:ticked/cancel", async function DeleteTicket(req, res) {
 
 app.listen(process.env.PORT);
 
-function processReact(reaction: Discord.MessageReaction, user: Discord.User | Discord.PartialUser) {
+
+function messageFilter(msg: Discord.Message): boolean {
+  return client.user === msg.author && msg.embeds[0]?.title === requested;
+}
+
+function messageProcess(msg: Discord.Message) {
+  msg.createReactionCollector(reactFilter).once('collect', reactProcess);
+}
+
+function reactFilter(reaction: Discord.MessageReaction): boolean {
+  return !reaction.me && reaction.emoji.name === '✅';
+}
+
+function reactProcess(reaction: Discord.MessageReaction, user: Discord.User | Discord.PartialUser) {
   const embed = new Discord.MessageEmbed(reaction.message.embeds[0]);
   if (embed.title === requested) {
     reaction.message.edit(embed.setTitle(responding).spliceFields(1, 0, { name: "Mentor", value: user, inline: true }));
   }
 }
 
-getChannel().then(chan => {
-  chan?.createMessageCollector((msg: Discord.Message) =>
-    client.user === msg.author && msg.embeds[0]?.title === requested
-    ).on('collect', (msg: Discord.Message) => {
-      msg.createReactionCollector((reaction: Discord.MessageReaction) =>
-        !reaction.me && reaction.emoji.name === '✅'
-      ).once('collect', processReact);
+getChannel().then(async chan => {
+  chan?.createMessageCollector(messageFilter).on('collect', messageProcess);
+  const collection = await chan?.messages.fetch({
+    limit: 30,
   });
+  collection?.filter(messageFilter).forEach(messageProcess);
 });
