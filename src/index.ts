@@ -1,10 +1,8 @@
 import Discord from "discord.js";
 import express from "express";
 import dotenv from "dotenv";
-
-const requested = 'Mentor Requested';
-const responding = 'Mentor Responding';
-const canceled = 'Request Canceled';
+import { observeChannel } from "./discord_binding";
+import {requested, responding, canceled, completed} from "./ticket";
 
 function parseBodyToMsg(body: { [index: string]: any }) : Discord.MessageEmbed | undefined {
   var success = true;
@@ -28,7 +26,26 @@ function parseBodyToMsg(body: { [index: string]: any }) : Discord.MessageEmbed |
     .addField("Language", lang, true)
     .addField("Description", desc)
     .addField("Session", session)
-    .setTimestamp() : undefined;
+    .addField("Created", new Date(Date.now())) : undefined;
+}
+
+function embedTitleToStatus(embed: Discord.MessageEmbed): string {
+  let status = "unknown";
+  switch(embed.title) {
+    case requested:
+      status = "requested";
+      break;
+    case responding:
+      status = "responding";
+      break;
+    case canceled:
+      status = "canceled";
+      break;
+    case completed:
+      status = "completed";
+      break;
+  }
+  return status;
 }
 
 dotenv.config();
@@ -61,6 +78,50 @@ app.use(async function PopulateChannel(_req, res, next) {
 
 function getChan(res: any) : Discord.TextChannel | Discord.DMChannel | Discord.NewsChannel {
   return res.locals.channel;
+}
+
+app.use(function formatResponse(req, res, next){
+  res.locals.writer = async (msg: Discord.Message): Promise<void> => {
+    const embed = msg.embeds[0];
+    let mentor = embed.fields.find(f => f.name === "Mentor")?.value;
+
+    if (mentor) {
+      mentor = mentor.replace("<@", "").replace(">", "");
+      try{
+        if (mentor) {
+          const user = await client.users.fetch(mentor);
+          mentor = user.username;
+        }
+      }
+      catch {
+        // This means user not found.
+      }
+    }
+  
+    const toSend: {
+      ticket: string,
+      status: string,
+      mentor?: string,
+    } = {
+      ticket: msg.id,
+      status: embedTitleToStatus(embed),
+    };
+  
+    if (mentor) {
+      toSend.mentor = mentor;
+    }
+
+    if (req.accepts("json") && req.headers.accept) {
+      res.send(toSend);
+    } else {
+      res.send(new URLSearchParams(toSend).toString());
+    }
+  }
+  next();
+});
+
+function getWriter(res: any): (embed: Discord.Message) => Promise<void> {
+  return res.locals.writer;
 }
 
 app.use("/mentee/:ticket", async function PopulateMessageAndEmbed(req, res, next) {
@@ -97,50 +158,12 @@ app.post("/mentee", async function CreateTicket(req, res) {
 
   const chan = getChan(res);
   const message = await chan.send(embed);
-  await message.react('✅');
 
-  res.send({
-    ticket: message.id,
-  });
+  await getWriter(res)(message);
 });
 
 app.get("/mentee/:ticket", async function CheckTicket(req, res) {
-  const msg = getMessage(res);
-  const embed = getEmbed(res);
-
-  let mentor = embed.fields.find(f => f.name === "Mentor")?.value;
-
-  if (mentor) {
-    mentor = mentor.replace("<@", "").replace(">", "");
-    try{
-      if (mentor) {
-        const user = await client.users.fetch(mentor);
-        mentor = user.username;
-      }
-    }
-    catch {
-      // This means user not found.
-    }
-  }
-
-  let status;
-  switch(embed.title) {
-    case requested:
-      status = "requested";
-      break;
-    case responding:
-      status = "responding";
-      break;
-    case canceled:
-      status = "canceled";
-      break;
-  }
-
-  res.send({
-    ticket: msg.id,
-    status,
-    mentor,
-  });
+  await getWriter(res)(getMessage(res));
 });
 
 app.post("/mentee/:ticked/cancel", async function DeleteTicket(req, res) {
@@ -152,37 +175,15 @@ app.post("/mentee/:ticked/cancel", async function DeleteTicket(req, res) {
     return;
   }
 
-  await msg.edit(new Discord.MessageEmbed(embed).setTitle(canceled));
+  const newMsg = await msg.edit(new Discord.MessageEmbed(embed).setTitle(canceled));
 
-  res.sendStatus(200);
+  await getWriter(res)(newMsg);
 });
 
 app.listen(process.env.PORT);
 
-
-function messageFilter(msg: Discord.Message): boolean {
-  return client.user === msg.author && msg.embeds[0]?.title === requested;
-}
-
-function messageProcess(msg: Discord.Message) {
-  msg.createReactionCollector(reactFilter).once('collect', reactProcess);
-}
-
-function reactFilter(reaction: Discord.MessageReaction): boolean {
-  return !reaction.me && reaction.emoji.name === '✅';
-}
-
-function reactProcess(reaction: Discord.MessageReaction, user: Discord.User | Discord.PartialUser) {
-  const embed = new Discord.MessageEmbed(reaction.message.embeds[0]);
-  if (embed.title === requested) {
-    reaction.message.edit(embed.setTitle(responding).spliceFields(1, 0, { name: "Mentor", value: user, inline: true }));
+getChannel().then(chan => {
+  if (chan) {
+    observeChannel(chan);
   }
-}
-
-getChannel().then(async chan => {
-  chan?.createMessageCollector(messageFilter).on('collect', messageProcess);
-  const collection = await chan?.messages.fetch({
-    limit: 30,
-  });
-  collection?.filter(messageFilter).forEach(messageProcess);
 });
