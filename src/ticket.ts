@@ -1,4 +1,4 @@
-import Discord, { Snowflake } from "discord.js";
+import Discord from "discord.js";
 
 export const requested = 'Mentor Requested';
 export const responding = 'Mentor Responding';
