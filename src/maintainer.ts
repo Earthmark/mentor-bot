@@ -1,5 +1,5 @@
 import Discord from "discord.js";
-import { requested, responding, claimEmoji, unclaimEmoji, completeEmoji, getMentor, completed } from './ticket';
+import { requested, responding, claimEmoji, unclaimEmoji, completeEmoji, getMentor, completed, getChannel } from './ticket';
 
 export async function observeChannel(channel: Discord.TextChannel | Discord.DMChannel | Discord.NewsChannel): Promise<void> {
   channel.createMessageCollector(messageFilter).on('collect', messageProcess);
@@ -39,7 +39,7 @@ async function requestedProcess(reaction: Discord.MessageReaction, user: Discord
   if (embed.title === requested) {
     const newMsg = await reaction.message.edit(embed
       .setTitle(responding)
-      .spliceFields(1, 0, { name: "Mentor", value: user, inline: true })
+      .spliceFields(1, 0, [{ name: "Mentor", value: user, inline: true }, { name: "Mentor Name", value: user.username, inline: true }])
       .addField("Claimed", new Date(Date.now()))
     );
     await messageProcess(newMsg);
@@ -50,7 +50,7 @@ function respondingFilter(reaction: Discord.MessageReaction, user: Discord.User 
   return getMentor(reaction.message) === user.id && (reaction.emoji.name === completeEmoji || reaction.emoji.name === unclaimEmoji);
 }
 
-function removeFields(embed: Discord.MessageEmbed, toRemove: Array<string>): Discord.MessageEmbed {
+function removeFields(embed: Discord.MessageEmbed, toRemove: string[]): Discord.MessageEmbed {
   embed.fields = embed.fields.filter(
     field => toRemove.find(rem => rem === field.name) === undefined)
   return embed;
@@ -65,10 +65,16 @@ async function respondingProcess(reaction: Discord.MessageReaction, user: Discor
         .addField("Completed",new Date(Date.now()))
       );
     } else if (reaction.emoji.name === unclaimEmoji) {
-      const newMsg = await reaction.message.edit(removeFields(embed, ["Mentor", "Claimed"])
+      const newMsg = await reaction.message.edit(removeFields(embed, ["Mentor", "Claimed", "Mentor Name"])
         .setTitle(requested)
       );
      await  messageProcess(newMsg);
     }
   }
 }
+
+getChannel().then(chan => {
+  if (chan) {
+    observeChannel(chan);
+  }
+});

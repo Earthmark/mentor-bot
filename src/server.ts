@@ -1,11 +1,9 @@
 import Discord from "discord.js";
 import express from "express";
-import dotenv from "dotenv";
-import { observeChannel } from "./discord_binding";
-import {requested, responding, canceled, completed} from "./ticket";
+import {requested, responding, canceled, completed, getChannel} from "./ticket";
 
 function parseBodyToMsg(body: { [index: string]: any }) : Discord.MessageEmbed | undefined {
-  var success = true;
+  let success = true;
 
   function migrateField(value: string | number | undefined) : string {
     if (typeof(value) === 'string' || typeof(value) === 'number') {
@@ -48,21 +46,6 @@ function embedTitleToStatus(embed: Discord.MessageEmbed): string {
   return status;
 }
 
-dotenv.config();
-
-const client = new Discord.Client();
-
-const clientLogin = client.login(process.env.BOT_TOKEN);
-
-async function getChannel() : Promise<Discord.TextChannel | Discord.DMChannel | Discord.NewsChannel | undefined> {
-  await clientLogin;
-  const chan = await client.channels.fetch(process.env.BOT_CHANNEL ?? "");
-  if (chan === undefined || !chan.isText()) {
-    return undefined;
-  }
-  return chan;
-}
-
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -83,21 +66,8 @@ function getChan(res: any) : Discord.TextChannel | Discord.DMChannel | Discord.N
 app.use(function formatResponse(req, res, next){
   res.locals.writer = async (msg: Discord.Message): Promise<void> => {
     const embed = msg.embeds[0];
-    let mentor = embed.fields.find(f => f.name === "Mentor")?.value;
+    const mentor = embed.fields.find(f => f.name === "Mentor Name")?.value;
 
-    if (mentor) {
-      mentor = mentor.replace("<@", "").replace(">", "");
-      try{
-        if (mentor) {
-          const user = await client.users.fetch(mentor);
-          mentor = user.username;
-        }
-      }
-      catch {
-        // This means user not found.
-      }
-    }
-  
     const toSend: {
       ticket: string,
       status: string,
@@ -106,7 +76,7 @@ app.use(function formatResponse(req, res, next){
       ticket: msg.id,
       status: embedTitleToStatus(embed),
     };
-  
+
     if (mentor) {
       toSend.mentor = mentor;
     }
@@ -170,7 +140,7 @@ app.post("/mentee/:ticked/cancel", async function DeleteTicket(req, res) {
   const msg = getMessage(res);
   const embed = getEmbed(res);
 
-  if (embed.title !== requested) {
+  if (embed.title !== requested && embed.title !== responding) {
     res.sendStatus(400);
     return;
   }
@@ -181,9 +151,3 @@ app.post("/mentee/:ticked/cancel", async function DeleteTicket(req, res) {
 });
 
 app.listen(process.env.PORT);
-
-getChannel().then(chan => {
-  if (chan) {
-    observeChannel(chan);
-  }
-});
