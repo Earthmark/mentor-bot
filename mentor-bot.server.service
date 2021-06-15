@@ -1,5 +1,5 @@
 [Unit]
-Description=Maintainer service for the mentor bot
+Description=Webserver Neos clients connect with for the mentor bot
 After=network.target
 
 [Service]
