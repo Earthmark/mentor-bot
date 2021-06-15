@@ -9,7 +9,6 @@ User=nobody
 Group=nogroup
 Environment=PATH=/usr/bin:/usr/local/bin
 Environment=NODE_ENV=production
-Environment=PORT=
 WorkingDirectory=/var/www/mentor-bot
 
 [Install]
