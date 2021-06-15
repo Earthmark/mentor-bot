@@ -1,0 +1,16 @@
+[Unit]
+Description=Maintainer service for the mentor bot
+After=network.target
+
+[Service]
+ExecStart=node ./out/maintainer.js
+Restart=always
+User=nobody
+Group=nogroup
+Environment=PATH=/usr/bin:/usr/local/bin
+Environment=NODE_ENV=production
+Environment=PORT=
+WorkingDirectory=/var/www/mentor-bot
+
+[Install]
+WantedBy=multi-user.target
