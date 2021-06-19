@@ -48,7 +48,11 @@ ws.on('connection', async function open(s, msg) {
     checkIfCanceled(ticket);
   });
 
+  // Ping every 25 seconds so the server stays alive (in worst case).
+  const interval = setInterval(() => s.ping(), 25000);
+
   s.on('close', () => {
     unsubscribeUpdates(sub);
+    clearInterval(interval);
   });
 });
