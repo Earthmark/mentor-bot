@@ -3,7 +3,7 @@ Description=Webserver Neos clients connect with for the mentor bot
 After=network.target
 
 [Service]
-ExecStart=node ./out/server.js
+ExecStart=node ./out/main.js
 Restart=always
 User=nobody
 Group=nogroup
