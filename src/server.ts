@@ -37,7 +37,11 @@ ws.on('connection', async function open(s, msg) {
 
   const checkIfCanceled = (message: Discord.Message) => {
     if (isFinal(message)) {
-      s.close();
+      // Due to a bug in the neos cliet, send the message first, then cancel the websocket a bit later.
+      // In this case 10 seconds.
+      setTimeout(() => {
+        s.close();
+      }, 10000);
     }
   }
 
