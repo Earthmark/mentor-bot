@@ -11,23 +11,22 @@
   },
   "scripts": {
     "lint": "tslint -p .",
-    "clean": "rimraf ./out",
-    "build": "yarn clean && tsc -p .",
-    "startMaintainer": "node ./out/maintainer.js",
-    "startServer": "node ./out/server.js",
-    "gcp-build": "tsc -p .",
-    "deploy": "gcloud app deploy"
+    "prebuild": "rimraf ./out",
+    "build": "tsc -p .",
+    "start": "node ./out/main.js"
   },
   "dependencies": {
     "discord.js": "^12.5.3",
     "dotenv": "^10.0.0",
     "express": "^4.17.1",
+    "rimraf": "^3.0.2",
     "typescript": "^4.3.2",
-    "rimraf": "^3.0.2"
+    "ws": "^7.5.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.12",
     "@types/node": "^15.12.2",
+    "@types/ws": "^7.4.5",
     "tslint": "^6.1.3"
   }
 }
