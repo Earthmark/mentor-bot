@@ -20,16 +20,26 @@ export class DiscordMaintainer {
     this.#notifier = notifer;
   }
 
-  start = async (): Promise<void> => {
+  // This needs to eventually subscribe to the notifier,
+  // as observations are not removed on ticket cancel (which happens via the ws).
+
+  // This observes messages in the store for reactions,
+  // moving the tickets through the reaction based state machine.
+  start = async (historyLimit: number): Promise<void> => {
     this.#store.observeTickets(this.#observeTicket);
 
-    // This currently has a race condition, possibly add a debounce here.
-    return this.#store.scanTickets(30, this.#observeTicket);
+    // This currently has a race condition where an observation can happen over the same message twice,
+    // if that message was added after the subscription starts but before the list grab starts.
+    // Possibly add a cache of active maintains, and only add a new subscription of the previous only exists.
+    // However that adds an object retention issue, where as the current retention is held by the event hander.
+    return this.#store.scanTickets(historyLimit, this.#observeTicket);
   };
 
+  // This sets up the observers for a particular ticket.
   #observeTicket = (ticket: Ticket): void => {
     switch (ticket.getStatus()) {
       case "requested":
+        // Requested can go to Responding or Canceled (canceled is through the ws server).
         ticket.observeForReaction(
           {
             [claimEmoji]: (mentor) =>
@@ -43,6 +53,7 @@ export class DiscordMaintainer {
         );
         break;
       case "responding":
+        // Responding can go to requested or complete (or canceled, but that's through the ws server).
         ticket.observeForReaction(
           {
             [unclaimEmoji]: () =>
@@ -64,6 +75,7 @@ export class DiscordMaintainer {
     }
   };
 
+  // Alerts the notifier and requeues for observation.
   #recordUpdateAndReload = (ticket: Ticket): void => {
     this.#observeTicket(this.#notifier.invoke(ticket));
   };

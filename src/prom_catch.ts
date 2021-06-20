@@ -1,3 +1,4 @@
+// This creates a logger to record a promise error, without having the runtime handle it itself.
 export const log =
   (ctx: string) =>
   <T>(p: Promise<T>): void =>

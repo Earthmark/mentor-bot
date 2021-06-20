@@ -9,10 +9,6 @@ export const canceled = "Request Canceled";
 
 type Status = "requested" | "responding" | "completed" | "canceled";
 
-export const claimEmoji = "👌";
-export const completeEmoji = "✅";
-export const unclaimEmoji = "🚫";
-
 const statusMap: {
   [key: string]: Status;
 } = {
@@ -22,19 +18,71 @@ const statusMap: {
   [completed]: "completed",
 };
 
-export const createStore = async (token: string): Promise<TicketStore> => {
+export const claimEmoji = "👌";
+export const completeEmoji = "✅";
+export const unclaimEmoji = "🚫";
+
+// The source that stores tickets.
+export interface TicketStore {
+  observeTickets: (handler: (ticket: Ticket) => void) => void;
+  scanTickets: (
+    limit: number,
+    handler: (ticket: Ticket) => void
+  ) => Promise<void>;
+  getOrCreateTicket: (
+    body: {
+      ticket: string;
+    } & TicketCreateArgs
+  ) => Promise<Ticket | undefined>;
+  getTicket: (ticket: string) => Promise<Ticket | undefined>;
+}
+
+export interface TicketCreateArgs {
+  name: string;
+  lang: string;
+  desc: string;
+  session: string;
+}
+
+// A ticket from a mentee requesting the assistance of a mentor.
+export interface Ticket {
+  getId: () => string;
+  getMentor: () => string | undefined;
+  isCompleted: () => boolean;
+  toPayload: (accept: string | undefined) => string;
+  getStatus: () => Status | "unknown";
+
+  observeForReaction: (
+    emoji: {
+      [key: string]: (user: Discord.User | Discord.PartialUser) => void;
+    },
+    mentorOnly: boolean
+  ) => void;
+
+  setCanceled: () => Promise<Ticket>;
+  setResponding: (
+    mentor: Discord.User | Discord.PartialUser
+  ) => Promise<Ticket>;
+  setCompleted: () => Promise<Ticket>;
+  setRequested: () => Promise<Ticket>;
+}
+
+export const createDiscordStore = async (
+  token: string
+): Promise<TicketStore> => {
   const client = new Discord.Client();
 
   await client.login(token);
 
   const chan = await client.channels.fetch(process.env.BOT_CHANNEL ?? "");
-  if (chan === undefined || !chan.isText()) {
+  if (!chan || !chan.isText()) {
     throw new Error("Bound to invalid channel.");
   }
-  return new TicketStore(chan);
+  return new DiscordTicketStore(chan);
 };
 
-export class TicketStore {
+// The interface between discord and the ticket service.
+class DiscordTicketStore {
   #channel: Discord.TextChannel | Discord.DMChannel | Discord.NewsChannel;
   constructor(
     channel: Discord.TextChannel | Discord.DMChannel | Discord.NewsChannel
@@ -70,13 +118,13 @@ export class TicketStore {
       });
   };
 
-  getOrCreateTicket = (body: {
-    [key: string]: string;
-  }): Promise<Ticket | undefined> => {
-    const ticket = body.ticket;
-
-    if (ticket) {
-      return this.getTicket(ticket);
+  getOrCreateTicket = (
+    body: {
+      ticket: string;
+    } & TicketCreateArgs
+  ): Promise<Ticket | undefined> => {
+    if ("ticket" in body && body.ticket) {
+      return this.getTicket(body.ticket);
     }
 
     return this.#createTicket(body);
@@ -95,24 +143,33 @@ export class TicketStore {
     if (title === null || statusMap[title] === undefined) {
       return undefined;
     }
-    return new Ticket(message);
+    return new DiscordTicket(message);
   };
 
   #createTicket = async (body: {
-    [key: string]: string;
+    name: string;
+    lang: string;
+    desc: string;
+    session: string;
   }): Promise<Ticket | undefined> => {
     const embed = bodyToEmbed(body);
-    const ticket = await this.#channel.send(embed).then(this.#tryBindTicket);
-    if (ticket) {
-      ticket.addReaction(claimEmoji);
-      ticket.addReaction(completeEmoji);
-      ticket.addReaction(unclaimEmoji);
-    }
+    const ticket = await this.#channel
+      .send(embed)
+      .then(async (chan) => {
+        await Promise.all([
+          chan.react(claimEmoji),
+          chan.react(completeEmoji),
+          chan.react(unclaimEmoji),
+        ]);
+        return chan;
+      })
+      .then(this.#tryBindTicket);
     return ticket;
   };
 }
 
-export class Ticket {
+// A ticket backed by a discord message.
+class DiscordTicket {
   #ticket: Discord.Message;
 
   constructor(ticket: Discord.Message) {
@@ -150,11 +207,6 @@ export class Ticket {
     }
 
     return toStr(toSend, accept);
-  };
-
-  addReaction = async (emote: string): Promise<Ticket> => {
-    this.#ticket = (await this.#ticket.react(emote)).message;
-    return this;
   };
 
   getStatus = (): Status | "unknown" => {
@@ -234,10 +286,10 @@ export class Ticket {
   };
 }
 
-const bodyToEmbed = (body: { [key: string]: string }): Discord.MessageEmbed => {
+const bodyToEmbed = (body: TicketCreateArgs): Discord.MessageEmbed => {
   let success = true;
 
-  const migrateField = (name: string): string => {
+  const migrateField = (name: keyof TicketCreateArgs): string => {
     const val = body[name];
     if (val) {
       return val;

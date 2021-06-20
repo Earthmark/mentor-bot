@@ -1,24 +1,31 @@
 import Websocket from "ws";
 import { IncomingMessage } from "http";
 
-import { Ticket, TicketStore } from "./ticket";
+import { Ticket, TicketStore, TicketCreateArgs } from "./ticket";
 import { SubscriptionNotifier, SubscriptionToken } from "./subs";
 import { toObj } from "./req";
 
+// This represents a websocket server clients can create tickets through.
 export class WsServer {
   #ws: Websocket.Server;
   #store: TicketStore;
   #notifier: SubscriptionNotifier;
-  constructor(
-    port: number | undefined,
-    store: TicketStore,
-    notifier: SubscriptionNotifier
-  ) {
+  #pingMs: number;
+  #stopDelay: number;
+  constructor(data: {
+    port: number | undefined;
+    store: TicketStore;
+    notifier: SubscriptionNotifier;
+    pingMs: number;
+    stopDelay: number;
+  }) {
     this.#ws = new Websocket.Server({
-      port,
+      port: data.port,
     });
-    this.#store = store;
-    this.#notifier = notifier;
+    this.#store = data.store;
+    this.#notifier = data.notifier;
+    this.#pingMs = data.pingMs;
+    this.#stopDelay = data.stopDelay;
 
     this.#ws.on("connection", this.#onConnection);
   }
@@ -29,11 +36,16 @@ export class WsServer {
       return;
     }
 
+    const args = Object.fromEntries(
+      new URL("ws://localhost" + msg.url).searchParams.entries()
+    );
+
     this.#store
       .getOrCreateTicket(
-        Object.fromEntries(
-          new URL("ws://localhost" + msg.url).searchParams.entries()
-        )
+        // this is bad, but we validate these later and the actual type is a bit funky.
+        args as unknown as {
+          ticket: string;
+        } & TicketCreateArgs
       )
       .then((ticket) => {
         if (!ticket) {
@@ -46,7 +58,9 @@ export class WsServer {
           msg,
           ticket,
           this.#store,
-          this.#notifier
+          this.#notifier,
+          this.#pingMs,
+          this.#stopDelay
         );
       })
       .catch((e) =>
@@ -58,6 +72,7 @@ export class WsServer {
   };
 }
 
+// This represents a connection to a server, managing what format and how to notify back to the client.
 export class WsServerConnection {
   #s: Websocket;
   #store: TicketStore;
@@ -66,21 +81,27 @@ export class WsServerConnection {
   #sub: SubscriptionToken;
   #id: string;
   #ping: NodeJS.Timeout;
+  #pingMs: number;
+  #stopDelay: number;
 
   constructor(
     s: Websocket,
     msg: IncomingMessage,
     ticket: Ticket,
     store: TicketStore,
-    notifier: SubscriptionNotifier
+    notifier: SubscriptionNotifier,
+    pingMs: number,
+    stopDelay: number
   ) {
     this.#s = s;
     this.#notifier = notifier;
     this.#id = ticket.getId();
     this.#store = store;
     this.#accept = msg.headers.accept;
+    this.#pingMs = pingMs;
+    this.#stopDelay = stopDelay;
 
-    s.send(ticket.toPayload(this.#accept));
+    this.#send(ticket);
 
     s.on("message", this.#onMessage);
 
@@ -92,10 +113,14 @@ export class WsServerConnection {
     );
 
     // Ping every 25 seconds so the server stays alive (in worst case).
-    this.#ping = setInterval(() => s.ping(), 25000);
+    this.#ping = setInterval(() => s.ping(), this.#pingMs);
 
     s.on("close", this.#onClose);
   }
+
+  #send = (ticket: Ticket): void => {
+    this.#s.send(ticket.toPayload(this.#accept));
+  };
 
   #onClose = (): void => {
     this.#notifier.unsubscribe(this.#sub);
@@ -103,7 +128,7 @@ export class WsServerConnection {
   };
 
   #updateNotification = (ticket: Ticket): void => {
-    this.#s.send(ticket.toPayload(this.#accept));
+    this.#send(ticket);
     this.#checkCanceled(ticket);
   };
 
@@ -132,7 +157,7 @@ export class WsServerConnection {
       // In this case 10 seconds.
       setTimeout(() => {
         this.#s.close();
-      }, 10000);
+      }, this.#stopDelay);
     }
   };
 }
