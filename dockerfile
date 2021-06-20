@@ -11,4 +11,4 @@ RUN yarn build
 ENV PORT=8080
 EXPOSE 8080
 
-CMD [ "node", "out/main.js" ]
+CMD [ "node", "dist/main.js" ]
