@@ -1,6 +1,6 @@
-import Discord from "discord.js";
+import { Ticket } from "./ticket";
 
-type MessageSubscription = (msg: Discord.Message) => void;
+type MessageSubscription = (msg: Ticket) => void;
 
 export type SubscriptionToken = [string, number];
 
@@ -15,7 +15,7 @@ export class SubscriptionNotifier {
   } = {};
 
   subscribe = (
-    id: Discord.Snowflake,
+    id: string,
     subscriber: MessageSubscription
   ): SubscriptionToken => {
     let sub = this.#subscriptions[id];
@@ -37,13 +37,16 @@ export class SubscriptionNotifier {
     if (sub) {
       const subs = sub.subs;
       delete subs[id[1]];
+      if (Object.keys(sub.subs).length === 0) {
+        delete this.#subscriptions[id[0]];
+      }
     }
   };
 
-  invoke = (message: Discord.Message): Discord.Message => {
-    const subs = this.#subscriptions[message.id];
+  invoke = (message: Ticket): Ticket => {
+    const subs = this.#subscriptions[message.getId()];
     if (subs) {
-      Object.values(subs.subs).map((sub) => sub(message));
+      Object.values(subs.subs).forEach((sub) => sub(message));
     }
     return message;
   };

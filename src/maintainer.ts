@@ -1,109 +1,70 @@
-import Discord from "discord.js";
-
 import {
-  requested,
-  responding,
+  Ticket,
+  TicketStore,
   claimEmoji,
   unclaimEmoji,
   completeEmoji,
-  getMentor,
-  isFinal,
-  isTicket,
-  setTicketResponding,
-  setTicketCompleted,
-  setTicketRequested,
 } from "./ticket";
 import { SubscriptionNotifier } from "./subs";
 import { log } from "./prom_catch";
 
-const processRootErr = log("Error while managing root requests");
 const processRequestedErr = log("Error while processing a requested ticket");
+const processUnclaimErr = log("Error while unclaiming a ticket");
 const processRespondingErr = log("Error while replying to a responding ticket");
 
 export class DiscordMaintainer {
-  #channel: Discord.TextChannel | Discord.DMChannel | Discord.NewsChannel;
+  #store: TicketStore;
   #notifier: SubscriptionNotifier;
-  constructor(
-    channel: Discord.TextChannel | Discord.DMChannel | Discord.NewsChannel,
-    notifer: SubscriptionNotifier
-  ) {
-    this.#channel = channel;
+  constructor(store: TicketStore, notifer: SubscriptionNotifier) {
+    this.#store = store;
     this.#notifier = notifer;
   }
 
   start = async (): Promise<void> => {
-    this.#channel
-      .createMessageCollector((msg) => this.#filterRootMessage(msg))
-      .on("collect", (msg) => processRootErr(this.#processRootMessage(msg)));
-    const collection = await this.#channel.messages.fetch({
-      limit: 30,
-    });
-    collection
-      .filter((msg) => this.#filterRootMessage(msg))
-      .forEach((msg) => processRootErr(this.#processRootMessage(msg)));
+    this.#store.observeTickets(this.#observeTicket);
+
+    // This currently has a race condition, possibly add a debounce here.
+    return this.#store.scanTickets(30, this.#observeTicket);
   };
 
-  #filterRootMessage = (msg: Discord.Message): boolean => {
-    return msg.client.user === msg.author && isTicket(msg) && !isFinal(msg);
-  };
-
-  #processRootMessage = async (msg: Discord.Message): Promise<void> => {
-    const title = msg.embeds[0].title;
-    if (title === requested) {
-      msg
-        .createReactionCollector((r) => this.#filterRequested(r), {
-          max: 1,
-        })
-        .once("collect", (r, u) =>
-          processRequestedErr(this.#processRequested(r, u))
+  #observeTicket = (ticket: Ticket): void => {
+    switch (ticket.getStatus()) {
+      case "requested":
+        ticket.observeForReaction(
+          {
+            [claimEmoji]: (mentor) =>
+              processRequestedErr(
+                ticket
+                  .setResponding(mentor)
+                  .finally(() => this.#recordUpdateAndReload(ticket))
+              ),
+          },
+          /*mentor_only=*/ false
         );
-      await msg.react(claimEmoji);
-    } else if (title === responding) {
-      msg
-        .createReactionCollector((r, u) => this.#filterResponding(r, u), {
-          max: 1,
-        })
-        .once("collect", (r) =>
-          processRespondingErr(this.#processResponding(r))
+        break;
+      case "responding":
+        ticket.observeForReaction(
+          {
+            [unclaimEmoji]: () =>
+              processUnclaimErr(
+                ticket
+                  .setRequested()
+                  .finally(() => this.#recordUpdateAndReload(ticket))
+              ),
+            [completeEmoji]: () =>
+              processRespondingErr(
+                ticket
+                  .setCompleted()
+                  .finally(() => this.#recordUpdateAndReload(ticket))
+              ),
+          },
+          /*mentor_only=*/ true
         );
-      await msg.react(completeEmoji);
-      await msg.react(unclaimEmoji);
+        break;
     }
   };
 
-  #filterRequested = (reaction: Discord.MessageReaction): boolean => {
-    return !reaction.me && reaction.emoji.name === claimEmoji;
-  };
-
-  #processRequested = async (
-    reaction: Discord.MessageReaction,
-    user: Discord.User | Discord.PartialUser
-  ): Promise<void> => {
-    const newMsg = await setTicketResponding(reaction.message, user);
-    this.#notifier.invoke(newMsg);
-    await this.#processRootMessage(newMsg);
-  };
-
-  #filterResponding = (
-    reaction: Discord.MessageReaction,
-    user: Discord.User | Discord.PartialUser
-  ): boolean => {
-    return (
-      getMentor(reaction.message) === user.id &&
-      (reaction.emoji.name === completeEmoji ||
-        reaction.emoji.name === unclaimEmoji)
-    );
-  };
-
-  #processResponding = async (
-    reaction: Discord.MessageReaction
-  ): Promise<void> => {
-    if (reaction.emoji.name === completeEmoji) {
-      this.#notifier.invoke(await setTicketCompleted(reaction.message));
-    } else if (reaction.emoji.name === unclaimEmoji) {
-      const newMsg = await setTicketRequested(reaction.message);
-      this.#notifier.invoke(newMsg);
-      await this.#processRootMessage(newMsg);
-    }
+  #recordUpdateAndReload = (ticket: Ticket): void => {
+    this.#observeTicket(this.#notifier.invoke(ticket));
   };
 }
