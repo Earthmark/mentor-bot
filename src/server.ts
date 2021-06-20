@@ -1,62 +1,60 @@
-import Discord from 'discord.js';
-import Websocket from 'ws';
+import Discord from "discord.js";
+import Websocket from "ws";
 
-import { getOrCreateTicket, messageToString, setTicketCanceled, isFinal } from './ticket';
-import { subscribeUpdates, unsubscribeUpdates, invokeSubscriptions } from './subs';
-import { toObj } from './req';
+import { getOrCreateTicket } from "./ticket";
+import { SubscriptionNotifier } from "./subs";
+import { IncomingMessage } from "http";
+import { WsServerConnection } from "./server_connection";
 
-const ws = new Websocket.Server({
-  port: process.env.PORT as any
-});
+export class WsServer {
+  #ws: Websocket.Server;
+  #channel: Discord.TextChannel | Discord.DMChannel | Discord.NewsChannel;
+  #notifier: SubscriptionNotifier;
+  constructor(
+    port: number | undefined,
+    channel: Discord.TextChannel | Discord.DMChannel | Discord.NewsChannel,
+    notifier: SubscriptionNotifier
+  ) {
+    this.#ws = new Websocket.Server({
+      port,
+    });
+    this.#channel = channel;
+    this.#notifier = notifier;
 
-ws.on('connection', async function open(s, msg) {
-  if (!msg.url?.startsWith("/mentee?")) {
-    s.close();
-    return;
+    this.#ws.on("connection", this.#onConnection);
   }
 
-  const ticket = await getOrCreateTicket(Object.fromEntries(
-    new URL("ws://localhost" + msg.url).searchParams.entries()));
-  if (!ticket) {
-    s.close();
-    return;
-  }
-
-  const accept = msg.headers.accept;
-
-  s.on('message', async (data) => {
-    if (typeof data === 'string') {
-      const val = toObj(data, accept);
-      if(val.type === "cancel") {
-        invokeSubscriptions(await setTicketCanceled(ticket.id));
-      }
+  #onConnection = (s: Websocket, msg: IncomingMessage): void => {
+    if (!msg.url?.startsWith("/mentee?")) {
+      s.close();
+      return;
     }
-  });
 
-  s.send(messageToString(ticket, accept));
+    getOrCreateTicket(
+      this.#channel,
+      Object.fromEntries(
+        new URL("ws://localhost" + msg.url).searchParams.entries()
+      )
+    )
+      .then((ticket) => {
+        if (!ticket) {
+          s.close();
+          return;
+        }
 
-  const checkIfCanceled = (message: Discord.Message) => {
-    if (isFinal(message)) {
-      // Due to a bug in the neos cliet, send the message first, then cancel the websocket a bit later.
-      // In this case 10 seconds.
-      setTimeout(() => {
-        s.close();
-      }, 10000);
-    }
-  }
-
-  checkIfCanceled(ticket);
-
-  const sub = subscribeUpdates(ticket.id, (subMsg) => {
-    s.send(messageToString(subMsg, accept));
-    checkIfCanceled(ticket);
-  });
-
-  // Ping every 25 seconds so the server stays alive (in worst case).
-  const interval = setInterval(() => s.ping(), 25000);
-
-  s.on('close', () => {
-    unsubscribeUpdates(sub);
-    clearInterval(interval);
-  });
-});
+        return new WsServerConnection(
+          s,
+          msg,
+          ticket,
+          this.#channel,
+          this.#notifier
+        );
+      })
+      .catch((e) =>
+        console.log(
+          "Failed to bind observer for ticket, it likely didn't exist.",
+          e
+        )
+      );
+  };
+}

@@ -1,43 +1,50 @@
-import Discord from 'discord.js';
+import Discord from "discord.js";
 
-type MessageSubscription = (msg: Discord.Message)=> void;
+type MessageSubscription = (msg: Discord.Message) => void;
 
-const subscriptions: {
-  [key: string]: {
-    counter: number,
-    subs:{ [key: number]: MessageSubscription }
-  } | undefined
-} = {};
+export type SubscriptionToken = [string, number];
 
-type SubscriptionToken = [string, number];
+export class SubscriptionNotifier {
+  #subscriptions: {
+    [key: string]:
+      | {
+          counter: number;
+          subs: { [key: number]: MessageSubscription };
+        }
+      | undefined;
+  } = {};
 
-export function subscribeUpdates(id: Discord.Snowflake, subscriber: MessageSubscription): SubscriptionToken {
-  let sub = subscriptions[id];
-  if (!sub) {
-    sub = subscriptions[id] = {
-      counter: 0,
-      subs: {}
-    };
-  }
+  subscribe = (
+    id: Discord.Snowflake,
+    subscriber: MessageSubscription
+  ): SubscriptionToken => {
+    let sub = this.#subscriptions[id];
+    if (!sub) {
+      sub = this.#subscriptions[id] = {
+        counter: 0,
+        subs: {},
+      };
+    }
 
-  const counter = sub.counter;
-  sub.counter++;
-  sub.subs[counter] = subscriber;
-  return [id, counter];
-}
+    const counter = sub.counter;
+    sub.counter++;
+    sub.subs[counter] = subscriber;
+    return [id, counter];
+  };
 
-export function unsubscribeUpdates(id: SubscriptionToken){
-  const sub = subscriptions[id[0]];
-  if (sub) {
-    const subs = sub.subs;
-    delete subs[id[1]];
-  }
-}
+  unsubscribe = (id: SubscriptionToken): void => {
+    const sub = this.#subscriptions[id[0]];
+    if (sub) {
+      const subs = sub.subs;
+      delete subs[id[1]];
+    }
+  };
 
-export function invokeSubscriptions(message: Discord.Message): Discord.Message {
-  const subs = subscriptions[message.id];
-  if (subs) {
-    Object.values(subs.subs).map(sub => sub(message));
-  }
-  return message;
+  invoke = (message: Discord.Message): Discord.Message => {
+    const subs = this.#subscriptions[message.id];
+    if (subs) {
+      Object.values(subs.subs).map((sub) => sub(message));
+    }
+    return message;
+  };
 }

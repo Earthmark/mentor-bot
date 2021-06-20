@@ -1,18 +1,17 @@
-
 type STable = { [key: string]: string };
 
-export function toObj(payload: string, accept?: string): STable {
+export const toObj = (payload: string, accept?: string): STable => {
   if (accept === "application/json") {
-    return JSON.parse(payload);
+    return JSON.parse(payload) as STable;
   } else {
     return Object.fromEntries(new URLSearchParams(payload).entries());
   }
-}
+};
 
-export function toStr(payload: STable, accept?: string) {
+export const toStr = (payload: STable, accept?: string): string => {
   if (accept === "application/json") {
     return JSON.stringify(payload);
   } else {
     return new URLSearchParams(Object.entries(payload)).toString();
   }
-}
+};
