@@ -8,10 +8,10 @@ import { SubscriptionNotifier } from "./subs";
 dotenv.config();
 
 getChannel(process.env.BOT_TOKEN ?? "")
-  .then((channel) => {
+  .then(async (channel) => {
     const notifier = new SubscriptionNotifier();
-    new DiscordMaintainer(channel, notifier).start();
     new WsServer(parseInt(process.env.PORT ?? "", 10), channel, notifier);
+    await new DiscordMaintainer(channel, notifier).start();
     console.log("Initialization successful.");
   })
   .catch((e) => console.log("Failure during startup", e));

@@ -34,12 +34,20 @@ export const getMentor = (
     .replace(">", "");
 };
 
+export const isTicket = (message: Discord.Message): boolean => {
+  const embed = message.embeds[0];
+  if (!embed) {
+    return false;
+  }
+  const title = embed.title;
+  return title !== null && statusMap[title] !== undefined;
+};
+
 export const isFinal = (message: Discord.Message): boolean => {
   if (!message.embeds[0]) {
     throw new Error("Ticket did not have en embed, likely a bad id.");
   }
-  const embed = message.embeds[0];
-  const title = embed.title;
+  const title = message.embeds[0].title;
   return title !== requested && title !== responding;
 };
 

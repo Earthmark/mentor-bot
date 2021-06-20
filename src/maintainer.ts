@@ -8,6 +8,7 @@ import {
   completeEmoji,
   getMentor,
   isFinal,
+  isTicket,
   setTicketResponding,
   setTicketCompleted,
   setTicketRequested,
@@ -43,7 +44,7 @@ export class DiscordMaintainer {
   };
 
   #filterRootMessage = (msg: Discord.Message): boolean => {
-    return msg.client.user === msg.author && !isFinal(msg);
+    return msg.client.user === msg.author && isTicket(msg) && !isFinal(msg);
   };
 
   #processRootMessage = async (msg: Discord.Message): Promise<void> => {
