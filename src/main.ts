@@ -1,25 +1,36 @@
 import dotenv from "dotenv";
 
 import { createDiscordStore } from "./ticket";
-import { DiscordMaintainer } from "./maintainer";
-import { WsServer } from "./server";
+import { maintainDiscordLink } from "./maintainer";
+import { createWsServer } from "./wsServer";
 import { SubscriptionNotifier } from "./subs";
+import { createServer } from "./httpServer";
+import { logProm } from "./prom_catch";
 
 dotenv.config();
 
-createDiscordStore(process.env.BOT_TOKEN ?? "")
-  .then(async (store) => {
-    const notifier = new SubscriptionNotifier();
-    new WsServer({
-      port: parseInt(process.env.PORT ?? "8080", 10),
-      pingMs: parseInt(process.env.PING_RATE_MS ?? "25000", 10),
-      stopDelay: parseInt(process.env.STOP_SIGNAL_DELAY_MS ?? "10000", 10),
-      store,
-      notifier,
-    });
-    await new DiscordMaintainer(store, notifier).start(
-      parseInt(process.env.HISTORY_LIMIT ?? "30", 10)
-    );
-    console.log("Initialization successful.");
-  })
-  .catch((e) => console.log("Failure during startup", e));
+logProm("Failure during startup")(async () => {
+  const store = await createDiscordStore(process.env.BOT_TOKEN ?? "");
+  const notifier = new SubscriptionNotifier();
+
+  const wsHandler = createWsServer({
+    pingMs: parseInt(process.env.PING_RATE_MS ?? "25000", 10),
+    stopDelay: parseInt(process.env.STOP_SIGNAL_DELAY_MS ?? "10000", 10),
+    store,
+    notifier,
+  });
+
+  const maintainer = await maintainDiscordLink(
+    store,
+    notifier,
+    parseInt(process.env.HISTORY_LIMIT ?? "30", 10)
+  );
+
+  createServer({
+    port: parseInt(process.env.PORT ?? "8080", 10),
+    healthChecks: [maintainer],
+    wsHandler: wsHandler,
+  });
+
+  console.log("Initialization successful.");
+});

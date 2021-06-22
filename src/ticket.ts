@@ -24,7 +24,7 @@ export const unclaimEmoji = "🚫";
 
 // The source that stores tickets.
 export interface TicketStore {
-  observeTickets: (handler: (ticket: Ticket) => void) => void;
+  observeTickets: (handler: (ticket: Ticket) => void) => () => boolean;
   scanTickets: (
     limit: number,
     handler: (ticket: Ticket) => void
@@ -49,15 +49,15 @@ export interface Ticket {
   getId: () => string;
   getMentor: () => string | undefined;
   isCompleted: () => boolean;
-  toPayload: (accept: string | undefined) => string;
   getStatus: () => Status | "unknown";
+  toPayload: (accept: string | undefined) => string;
 
-  observeForReaction: (
-    emoji: {
-      [key: string]: (user: Discord.User | Discord.PartialUser) => void;
-    },
-    mentorOnly: boolean
-  ) => void;
+  observeForReaction: (emoji: {
+    [key: string]: {
+      mentorOnly: boolean;
+      handler: (user: Discord.User | Discord.PartialUser) => void;
+    };
+  }) => void;
 
   setCanceled: () => Promise<Ticket>;
   setResponding: (
@@ -74,11 +74,18 @@ export const createDiscordStore = async (
 
   await client.login(token);
 
-  const chan = await client.channels.fetch(process.env.BOT_CHANNEL ?? "");
-  if (!chan || !chan.isText()) {
-    throw new Error("Bound to invalid channel.");
+  try {
+    const chan = await client.channels.fetch(process.env.BOT_CHANNEL ?? "");
+    if (!chan || !chan.isText()) {
+      throw new Error("Bound to invalid channel.");
+    }
+    return new DiscordTicketStore(chan);
+  } catch (e) {
+    client.destroy();
+    throw new Error(
+      "BOT_CHANNEL was not provided or did not connect to an accessable channel."
+    );
   }
-  return new DiscordTicketStore(chan);
 };
 
 // The interface between discord and the ticket service.
@@ -90,15 +97,17 @@ class DiscordTicketStore {
     this.#channel = channel;
   }
 
-  observeTickets = (handler: (ticket: Ticket) => void): void => {
-    this.#channel
+  observeTickets = (handler: (ticket: Ticket) => void): (() => boolean) => {
+    const collection = this.#channel
       .createMessageCollector((msg) => msg.client.user === msg.author)
       .on("collect", (msg) => {
+        console.log("Observed");
         const ticket = this.#tryBindTicket(msg);
         if (ticket) {
           handler(ticket);
         }
       });
+    return () => !collection.ended;
   };
 
   scanTickets = async (
@@ -111,6 +120,7 @@ class DiscordTicketStore {
     collection
       .filter((msg) => msg.client.user === msg.author)
       .forEach((msg) => {
+        console.log("Scanned");
         const ticket = this.#tryBindTicket(msg);
         if (ticket) {
           handler(ticket);
@@ -153,17 +163,13 @@ class DiscordTicketStore {
     session: string;
   }): Promise<Ticket | undefined> => {
     const embed = bodyToEmbed(body);
-    const ticket = await this.#channel
-      .send(embed)
-      .then(async (chan) => {
-        await Promise.all([
-          chan.react(claimEmoji),
-          chan.react(completeEmoji),
-          chan.react(unclaimEmoji),
-        ]);
-        return chan;
-      })
-      .then(this.#tryBindTicket);
+    const msg = await this.#channel.send(embed);
+    await Promise.all([
+      msg.react(claimEmoji),
+      msg.react(completeEmoji),
+      msg.react(unclaimEmoji),
+    ]);
+    const ticket = this.#tryBindTicket(msg);
     return ticket;
   };
 }
@@ -265,12 +271,12 @@ class DiscordTicket {
     return this;
   };
 
-  observeForReaction = (
-    emoji: {
-      [key: string]: (user: Discord.User | Discord.PartialUser) => void;
-    },
-    mentorOnly: boolean
-  ): void => {
+  observeForReaction = (emoji: {
+    [key: string]: {
+      mentorOnly: boolean;
+      handler: (user: Discord.User | Discord.PartialUser) => void;
+    };
+  }): void => {
     this.#ticket
       .createReactionCollector(
         (
@@ -279,10 +285,13 @@ class DiscordTicket {
         ): boolean =>
           !reaction.me &&
           emoji[reaction.emoji.name] !== undefined &&
-          (!mentorOnly || user.id === this.getMentor()),
+          (!emoji[reaction.emoji.name].mentorOnly ||
+            user.id === this.getMentor()),
         { max: 1 }
       )
-      .once("collect", (reaction, user) => emoji[reaction.emoji.name](user));
+      .once("collect", (reaction, user) =>
+        emoji[reaction.emoji.name].handler(user)
+      );
   };
 }
 
