@@ -7,6 +7,8 @@ import { SubscriptionNotifier } from "./subs";
 import { toObj } from "./req";
 import { logProm } from "./prom_catch";
 
+// Websocket handling is defined here, but this is not the actual server.
+
 const handlerError = logProm("Web request handler failed");
 
 type WsHandler = (

@@ -2,6 +2,9 @@ import Discord from "discord.js";
 
 import { toStr } from "./req";
 
+// This is the main adaptation layer between Discord and the service,
+// ticket operations are routed through this file.
+
 export const requested = "Mentor Requested";
 export const responding = "Mentor Responding";
 export const completed = "Request Completed";

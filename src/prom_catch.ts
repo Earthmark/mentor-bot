@@ -4,6 +4,7 @@ export const log =
   <T>(p: Promise<T>): void =>
     void p.catch((e) => console.log(ctx, e));
 
+// This creates a logger that instantly calls the provided function, suppressing any observed errors.
 export const logProm =
   (ctx: string) =>
   <T>(p: () => Promise<T>): void =>

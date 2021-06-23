@@ -4,8 +4,8 @@ type MessageSubscription = (msg: Ticket) => void;
 
 export type SubscriptionToken = [string, number];
 
-// A manager for ticket subscriptions, allowing the websocket service and maintainer to send notifications to eachother.
-// This may get replaced with a message buss if higher traffic loads are requried (as this is currently single-instance).
+// A manager for ticket subscriptions, allowing the websocket service and maintainer to send notifications to each other.
+// This may get replaced with a message buss if higher traffic loads are required (as this is currently single-instance).
 export class SubscriptionNotifier {
   #subscriptions: {
     [key: string]:
