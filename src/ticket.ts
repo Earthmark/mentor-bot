@@ -27,16 +27,24 @@ export const unclaimEmoji = "🚫";
 
 // The source that stores tickets.
 export interface TicketStore {
+  // Watch for new tickets that are added, returning a poller that returns if the observer is still active or not.
   observeTickets: (handler: (ticket: Ticket) => void) => () => boolean;
+
+  // Retrieves the last count of tickets (but likely less). This is to recover after shutdown.
   scanTickets: (
     limit: number,
     handler: (ticket: Ticket) => void
   ) => Promise<void>;
+
+  // Either retrieves a ticket, or creates a ticket from provided arguments.
+  // If creating a ticket, this may take a while. This can fail if invalid args are provided, or discord.js returns an error.
   getOrCreateTicket: (
     body: {
       ticket: string;
     } & TicketCreateArgs
   ) => Promise<Ticket | undefined>;
+
+  // Retrieves a ticket, returning undefined if not found.
   getTicket: (ticket: string) => Promise<Ticket | undefined>;
 }
 
@@ -49,18 +57,33 @@ export interface TicketCreateArgs {
 
 // A ticket from a mentee requesting the assistance of a mentor.
 export interface Ticket {
+  // The ID of the ticket (secretly this is a snowflake id).
   id: string;
+
+  // Returns the snowflake id of the mentor that has claimed the ticket.
   getMentor: () => string | undefined;
+
+  // If the ticket is currently in a final state, if this is true observations are not required as the ticket can't change anymore.
   isCompleted: () => boolean;
+
+  // Gets the current status of the ticket, or unknown if the status was unrecognized.
   getStatus: () => Status | "unknown";
+
+  // Encodes the ticket into a string payload, based on the accept format.
+  // Currently this is urlencoded or json, but defaults to urlencoded cause Neos uses that easier.
   toPayload: (accept: string | undefined) => string;
 
+  // Watches a ticket for a reaction, this will only watch for one reaction though.
+  // The set is the set of emoji being watched for, and contains the handler for the reaction along
+  // with if the reaction is only valid for the user returned by getMentor (if assigned).
   observeForReaction: (emoji: {
     [key: string]: {
       mentorOnly: boolean;
       handler: (user: Discord.User | Discord.PartialUser) => void;
     };
   }) => void;
+
+  // These are the mutators that advance through the ticket's states. See the top level readme for what the states are.
 
   setCanceled: () => Promise<Ticket>;
   setResponding: (
@@ -70,15 +93,18 @@ export interface Ticket {
   setRequested: () => Promise<Ticket>;
 }
 
+// Bind a ticket store using a discord channel as a database, using the provided api key.
+// This fails through an exception (because discord.js uses them heavily and it's hard to suppress them).
 export const createDiscordStore = async (
-  token: string
+  token: string,
+  channel: string
 ): Promise<TicketStore> => {
   const client = new Discord.Client();
 
   await client.login(token);
 
   try {
-    const chan = await client.channels.fetch(process.env.BOT_CHANNEL ?? "");
+    const chan = await client.channels.fetch(channel);
     if (!chan || !chan.isText()) {
       throw new Error("Bound to invalid channel.");
     }
@@ -86,7 +112,7 @@ export const createDiscordStore = async (
   } catch (e) {
     client.destroy();
     throw new Error(
-      "BOT_CHANNEL was not provided or did not connect to an accessable channel."
+      "BOT_CHANNEL was not provided or did not connect to an accessible channel."
     );
   }
 };
