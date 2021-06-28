@@ -1,5 +1,5 @@
 {
-  "name": "mentor-bot",
+  "name": "@earthmark/mentor-bot",
   "version": "1.0.0",
   "description": "A bot for notifying mentors that a user calls for aid!",
   "repository": "https://github.com/Earthmark/mentor-bot",
