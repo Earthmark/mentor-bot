@@ -5,13 +5,13 @@ import { SubscriptionNotifier } from "./subs";
 import { Ticket } from "./ticket";
 
 const id = "1";
-const message = {
-  getId: () => id,
+const message: Ticket = {
+  id: id,
 } as Ticket;
 
 describe("When a subscriber is notified.", () => {
   it("Then it will be invoked.", (done) => {
-    const notifer = new SubscriptionNotifier();
+    const notifer = new SubscriptionNotifier<Ticket>();
     notifer.subscribe(id, () => done());
     notifer.invoke(message);
   });
