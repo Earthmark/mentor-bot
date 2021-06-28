@@ -71,14 +71,15 @@ export interface Ticket {
 }
 
 export const createDiscordStore = async (
-  token: string
+  token: string,
+  channel: string
 ): Promise<TicketStore> => {
   const client = new Discord.Client();
 
   await client.login(token);
 
   try {
-    const chan = await client.channels.fetch(process.env.BOT_CHANNEL ?? "");
+    const chan = await client.channels.fetch(channel);
     if (!chan || !chan.isText()) {
       throw new Error("Bound to invalid channel.");
     }
@@ -104,7 +105,6 @@ class DiscordTicketStore {
     const collection = this.#channel
       .createMessageCollector((msg) => msg.client.user === msg.author)
       .on("collect", (msg) => {
-        console.log("Observed");
         const ticket = this.#tryBindTicket(msg);
         if (ticket) {
           handler(ticket);
@@ -123,7 +123,6 @@ class DiscordTicketStore {
     collection
       .filter((msg) => msg.client.user === msg.author)
       .forEach((msg) => {
-        console.log("Scanned");
         const ticket = this.#tryBindTicket(msg);
         if (ticket) {
           handler(ticket);
@@ -169,8 +168,8 @@ class DiscordTicketStore {
     const msg = await this.#channel.send(embed);
     await Promise.all([
       msg.react(claimEmoji),
-      msg.react(completeEmoji),
       msg.react(unclaimEmoji),
+      msg.react(completeEmoji),
     ]);
     const ticket = this.#tryBindTicket(msg);
     return ticket;
