@@ -1,6 +1,6 @@
 type STable = { [key: string]: string };
 
-// Converts from a string to a map of strings, based on the recieved format.
+// Converts from a string to a map of strings, based on the received format.
 export const toObj = (payload: string, accept?: string): STable => {
   if (accept === "application/json") {
     return JSON.parse(payload) as STable;

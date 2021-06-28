@@ -87,7 +87,7 @@ export const createDiscordStore = async (
   } catch (e) {
     client.destroy();
     throw new Error(
-      "BOT_CHANNEL was not provided or did not connect to an accessable channel."
+      "BOT_CHANNEL was not provided or did not connect to an accessible channel."
     );
   }
 };
