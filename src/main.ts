@@ -1,11 +1,11 @@
 import dotenv from "dotenv";
 
-import { createDiscordStore, Ticket } from "./ticket";
-import { maintainDiscordLink } from "./maintainer";
-import { createWsServer } from "./wsServer";
-import { SubscriptionNotifier } from "./subs";
-import { createServer } from "./httpServer";
-import { logProm } from "./prom_catch";
+import { createDiscordStore, Ticket } from "./ticket.js";
+import { maintainDiscordLink } from "./maintainer.js";
+import { createWsServer } from "./mentee_ws_handler.js";
+import { SubscriptionNotifier } from "./subs.js";
+import { createServer } from "./httpServer.js";
+import { logProm } from "./prom_catch.js";
 
 dotenv.config();
 
@@ -19,8 +19,7 @@ logProm("Failure during startup")(async () => {
   const notifier = new SubscriptionNotifier<Ticket>();
 
   // This creates the handler used to process web sockets from the client.
-  const wsHandler = createWsServer({
-    pingMs: parseInt(process.env.PING_RATE_MS ?? "25000", 10),
+  const menteeHandler = createWsServer({
     stopDelay: parseInt(process.env.STOP_SIGNAL_DELAY_MS ?? "10000", 10),
     store,
     notifier,
@@ -38,7 +37,7 @@ logProm("Failure during startup")(async () => {
   createServer({
     port: parseInt(process.env.PORT ?? "8080", 10),
     healthChecks: [maintainer],
-    wsHandler: wsHandler,
+    menteeHandler,
   });
 
   console.log("Startup successful.");

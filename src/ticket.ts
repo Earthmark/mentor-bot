@@ -1,6 +1,6 @@
 import Discord from "discord.js";
 
-import { toStr } from "./req";
+import { toStr } from "./req.js";
 
 // This is the main adaptation layer between Discord and the service,
 // ticket operations are routed through this file.
@@ -25,6 +25,12 @@ export const claimEmoji = "👌";
 export const completeEmoji = "✅";
 export const unclaimEmoji = "🚫";
 
+type TicketGetArgs = {
+  ticket?: string;
+};
+
+export type TicketGetOrCreateArgs = TicketGetArgs & TicketCreateArgs;
+
 // The source that stores tickets.
 export interface TicketStore {
   observeTickets: (handler: (ticket: Ticket) => void) => () => boolean;
@@ -32,19 +38,8 @@ export interface TicketStore {
     limit: number,
     handler: (ticket: Ticket) => void
   ) => Promise<void>;
-  getOrCreateTicket: (
-    body: {
-      ticket: string;
-    } & TicketCreateArgs
-  ) => Promise<Ticket | undefined>;
-  getTicket: (ticket: string) => Promise<Ticket | undefined>;
-}
-
-export interface TicketCreateArgs {
-  name: string;
-  lang: string;
-  desc: string;
-  session: string;
+  getOrCreateTicket: (body: TicketGetOrCreateArgs) => Promise<Ticket>;
+  getTicket: (ticket: string) => Promise<Ticket>;
 }
 
 // A ticket from a mentee requesting the assistance of a mentor.
@@ -130,11 +125,7 @@ class DiscordTicketStore {
       });
   };
 
-  getOrCreateTicket = (
-    body: {
-      ticket: string;
-    } & TicketCreateArgs
-  ): Promise<Ticket | undefined> => {
+  getOrCreateTicket = (body: TicketGetOrCreateArgs): Promise<Ticket> => {
     if ("ticket" in body && body.ticket) {
       return this.getTicket(body.ticket);
     }
@@ -142,28 +133,23 @@ class DiscordTicketStore {
     return this.#createTicket(body);
   };
 
-  getTicket = (ticket: string): Promise<Ticket | undefined> => {
-    return this.#channel.messages.fetch(ticket).then(this.#tryBindTicket);
+  getTicket = async (ticket: string): Promise<Ticket> => {
+    return this.#tryBindTicket(await this.#channel.messages.fetch(ticket));
   };
 
-  #tryBindTicket = (message: Discord.Message): Ticket | undefined => {
+  #tryBindTicket = (message: Discord.Message): Ticket => {
     const embed = message.embeds[0];
     if (!embed) {
-      return undefined;
+      throw new Error("Message did not have an embed, likely invalid.");
     }
     const title = embed.title;
     if (title === null || statusMap[title] === undefined) {
-      return undefined;
+      throw new Error("Message embed did not have a title, likely invalid.");
     }
     return new DiscordTicket(message);
   };
 
-  #createTicket = async (body: {
-    name: string;
-    lang: string;
-    desc: string;
-    session: string;
-  }): Promise<Ticket | undefined> => {
+  #createTicket = async (body: TicketCreateArgs): Promise<Ticket> => {
     const embed = bodyToEmbed(body);
     const msg = await this.#channel.send(embed);
     await Promise.all([
@@ -298,34 +284,47 @@ class DiscordTicket {
   };
 }
 
+const createFields = {
+  name: "User",
+  lang: "Language",
+  desc: "Description",
+  session: "Session",
+  sessionUrl: "Session Url",
+  sessionWebUrl: "Session Web Url",
+};
+
+const fields = {
+  ...createFields,
+  created: "Created",
+};
+
+type TicketCreateArgs = {
+  [Field in keyof typeof createFields]: string | undefined;
+};
+
 const bodyToEmbed = (body: TicketCreateArgs): Discord.MessageEmbed => {
-  let success = true;
-
-  const migrateField = (name: keyof TicketCreateArgs): string => {
-    const val = body[name];
-    if (val) {
-      return val;
+  const result: Record<string, string> = {};
+  let key: keyof typeof createFields;
+  for (key in createFields) {
+    const field = body[key];
+    if (field) {
+      result[key] = field;
     }
-    success = false;
-    return "";
-  };
+  }
 
-  const user = migrateField("name");
-  const lang = migrateField("lang");
-  const desc = migrateField("desc");
-  const session = migrateField("session");
-
-  if (!success) {
+  if (!result.name || !result.session) {
     throw new Error("A field was invalid");
   }
 
-  return new Discord.MessageEmbed()
-    .setTitle(requested)
-    .addField("User", user, true)
-    .addField("Language", lang, true)
-    .addField("Description", desc)
-    .addField("Session", session)
+  const embed = Object.keys(result)
+    .reduce(
+      (prev, cur) =>
+        prev.addField(fields[cur as keyof typeof createFields], result[cur]),
+      new Discord.MessageEmbed().setTitle(requested)
+    )
     .addField("Created", new Date(Date.now()));
+
+  return embed;
 };
 
 const removeFields = (
