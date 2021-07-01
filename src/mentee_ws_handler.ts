@@ -1,6 +1,6 @@
-import { Ticket, TicketStore, TicketGetOrCreateArgs } from "./ticket.js";
-import { SubscriptionNotifier } from "./subs.js";
-import { logProm } from "./prom_catch.js";
+import { Ticket, TicketStore, TicketGetOrCreateArgs } from "./ticket";
+import { SubscriptionNotifier } from "./subs";
+import { logProm } from "./prom_catch";
 
 // Websocket handling is defined here, but this is not the actual server.
 
