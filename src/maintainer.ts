@@ -5,7 +5,7 @@ import {
   unclaimEmoji,
   completeEmoji,
 } from "./ticket";
-import { SubscriptionNotifier } from "./subs";
+import { Notifier } from "./channel";
 import { log } from "./prom_catch";
 
 // This observes added tickets for reactions, and advances the state machine if found.
@@ -18,7 +18,7 @@ const processRespondingErr = log("Error while replying to a responding ticket");
 
 export const maintainDiscordLink = async (
   store: TicketStore,
-  notifier: SubscriptionNotifier<Ticket>,
+  notifier: Notifier<Ticket>,
   historyLimit: number
 ): Promise<() => boolean> => {
   const observeTicket = (ticket: Ticket): void => {

@@ -2,9 +2,29 @@ type MessageSubscription<Notified> = (msg: Notified) => void;
 
 export type SubscriptionToken = [string, number];
 
+export type Notifier<Notified> = {
+  invoke: (message: Notified) => Notified;
+};
+
+export type Subscriber<Notified> = {
+  subscribe: (
+    id: string,
+    subscriber: MessageSubscription<Notified>
+  ) => SubscriptionToken;
+  unsubscribe: (id: SubscriptionToken) => void;
+};
+
+export const createChannel = <
+  Notified extends {
+    id: string;
+  }
+>(): Notifier<Notified> & Subscriber<Notified> => {
+  return new SubscriptionNotifier<Notified>();
+};
+
 // A manager for ticket subscriptions, allowing the websocket service and maintainer to send notifications to each other.
 // This may get replaced with a message buss if higher traffic loads are required (as this is currently single-instance).
-export class SubscriptionNotifier<
+class SubscriptionNotifier<
   Notified extends {
     id: string;
   }

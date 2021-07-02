@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import { createDiscordStore, Ticket } from "./ticket.js";
 import { maintainDiscordLink } from "./maintainer.js";
 import { createWsServer } from "./mentee_ws_handler.js";
-import { SubscriptionNotifier } from "./subs.js";
+import { createChannel } from "./channel.js";
 import { createServer } from "./httpServer.js";
 import { logProm } from "./prom_catch.js";
 
@@ -16,7 +16,7 @@ logProm("Failure during startup")(async () => {
     process.env.BOT_CHANNEL ?? ""
   );
   // The notifier bridges the websocket server and maintainer, sending notifications of updates.
-  const notifier = new SubscriptionNotifier<Ticket>();
+  const notifier = createChannel<Ticket>();
 
   // This creates the handler used to process web sockets from the client.
   const menteeHandler = createWsServer({
@@ -38,6 +38,7 @@ logProm("Failure during startup")(async () => {
     port: parseInt(process.env.PORT ?? "8080", 10),
     healthChecks: [maintainer],
     menteeHandler,
+    mentorHandler: menteeHandler,
   });
 
   console.log("Startup successful.");

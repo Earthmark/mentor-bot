@@ -2,10 +2,7 @@ import express from "express";
 import http from "http";
 import ws from "ws";
 
-import { MenteeHandler, MenteeResponse } from "./mentee_ws_handler";
-import { toObj } from "./req";
 import { logProm } from "./prom_catch";
-import { TicketCreateArgs } from "./ticket";
 
 // The http server is created here, routing websocket requests to a provided handler.
 // This also does health check support through provided callbacks.
@@ -21,19 +18,17 @@ const flagMapQuery = (query: URLSearchParams): Record<string, string> => {
   return q;
 };
 
-const handleWs = (
-  route: string,
-  server: http.Server,
-  handler: (
-    ctor: Record<string, string>,
-    accept: string | undefined,
-    outboundHandler: (req: string) => void,
-    close: () => void
-  ) => Promise<{
-    inboundHandler: (arg: string) => void;
-    onClose: () => void;
-  }>
-) => {
+export type WsHandler = (
+  ctor: Record<string, string>,
+  accept: string | undefined,
+  outboundHandler: (req: string) => void,
+  close: () => void
+) => Promise<{
+  inboundHandler: (arg: string) => void;
+  onClose: () => void;
+}>;
+
+const handleWs = (route: string, server: http.Server, handler: WsHandler) => {
   const wss = new ws.Server({
     host: `ws://www.host.com${route}`,
     noServer: true,
@@ -70,7 +65,8 @@ const handleWs = (
 export const createServer = (data: {
   port: number;
   healthChecks: HealthCallback[];
-  menteeHandler: MenteeHandler;
+  menteeHandler: WsHandler;
+  mentorHandler: WsHandler;
 }): http.Server => {
   const app = express();
 
@@ -81,23 +77,8 @@ export const createServer = (data: {
 
   const server = app.listen(data.port);
 
-  // TODO: Verify these arguments more aggressively.
-  handleWs(
-    "/ws/mentee",
-    server,
-    async (ctor, accept, outboundHandler, close) => {
-      const { inboundHandler, onClose } = await data.menteeHandler(
-        ctor as TicketCreateArgs | { ticket: string },
-        (outbound) => outboundHandler(outbound.toMenteePayload(accept)),
-        () => close()
-      );
-      return {
-        inboundHandler: (arg) =>
-          inboundHandler(toObj(arg, accept) as MenteeResponse),
-        onClose: onClose,
-      };
-    }
-  );
+  handleWs("/ws/mentee", server, data.menteeHandler);
+  handleWs("/ws/mentor", server, data.mentorHandler);
 
   return server;
 };

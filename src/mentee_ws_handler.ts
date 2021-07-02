@@ -1,40 +1,26 @@
 import { Ticket, TicketStore, TicketCreateArgs } from "./ticket";
-import { SubscriptionNotifier } from "./subs";
+import { Notifier, Subscriber } from "./channel";
 import { logProm } from "./prom_catch";
-
-// Websocket handling is defined here, but this is not the actual server.
-
-type MenteeRequest = Ticket;
-
-export type MenteeResponse = {
-  type: "cancel";
-};
-
-export type MenteeHandler = (
-  getOrCreate: TicketCreateArgs | { ticket: string },
-  outboundHandler: (req: MenteeRequest) => void,
-  close: () => void
-) => Promise<{
-  inboundHandler: (arg: MenteeResponse) => void;
-  onClose: () => void;
-}>;
+import { WsHandler } from "./httpServer";
+import { toObj } from "./req";
 
 const inboundHandler = logProm("Error while handling inbound mentee request");
 
 // This represents a websocket server clients can create tickets through.
-export const createWsServer = (data: {
+export const createWsServer = ({
+  store,
+  notifier,
+  stopDelay,
+}: {
   store: TicketStore;
-  notifier: SubscriptionNotifier<Ticket>;
+  notifier: Notifier<Ticket> & Subscriber<Ticket>;
   stopDelay: number;
-}): MenteeHandler => {
-  const store = data.store;
-  const notifier = data.notifier;
-  const stopDelay = data.stopDelay;
-
-  return async (getOrCreate, outboundHandler, close) => {
-    const ticket = await ("ticket" in getOrCreate && getOrCreate.ticket
-      ? store.getTicket(getOrCreate.ticket)
-      : store.createTicket(getOrCreate as TicketCreateArgs));
+}): WsHandler => {
+  // TODO: Verify these arguments more aggressively.
+  return async (args, accept, outboundHandler, close) => {
+    const ticket = await ("ticket" in args && args.ticket
+      ? store.getTicket(args.ticket)
+      : store.createTicket(args as TicketCreateArgs));
 
     const id = ticket.id;
 
@@ -47,7 +33,7 @@ export const createWsServer = (data: {
     };
 
     const broadcastTicket = (t: Ticket): void => {
-      outboundHandler(t);
+      outboundHandler(t.toMenteePayload(accept));
       checkCanceled(t);
     };
 
@@ -58,7 +44,10 @@ export const createWsServer = (data: {
     return {
       inboundHandler: (msg) =>
         inboundHandler(async () => {
-          if (msg.type === "cancel") {
+          const m = toObj(msg) as {
+            type: "cancel";
+          };
+          if (m.type === "cancel") {
             const ticket = await store.getTicket(id);
             const canceledTicket = await ticket.setCanceled();
             notifier.invoke(canceledTicket);

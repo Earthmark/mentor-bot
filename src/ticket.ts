@@ -84,7 +84,7 @@ export interface Ticket {
 
   setCanceled: () => Promise<Ticket>;
   setResponding: (
-    mentor: Discord.User | Discord.PartialUser
+    mentor: Discord.User | Discord.PartialUser | NeosMentor
   ) => Promise<Ticket>;
   setCompleted: () => Promise<Ticket>;
   setRequested: () => Promise<Ticket>;
