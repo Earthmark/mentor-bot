@@ -25,11 +25,35 @@ export const claimEmoji = "👌";
 export const completeEmoji = "✅";
 export const unclaimEmoji = "🚫";
 
-type TicketGetArgs = {
-  ticket?: string;
+type NeosMentor = {
+  name: string;
+  neosId: string;
 };
 
-export type TicketGetOrCreateArgs = TicketGetArgs & TicketCreateArgs;
+export type TicketCreateArgs = {
+  [Field in keyof typeof createFields]: string | undefined;
+};
+
+const createFields = {
+  name: "User",
+  lang: "Language",
+  desc: "Description",
+  session: "Session",
+  sessionId: "Session ID",
+  sessionUrl: "Session Url",
+  sessionWebUrl: "Session Web Url",
+};
+
+const fieldNames = {
+  ...createFields,
+  mentorName: "Mentor Name",
+  mentorDiscordId: "Mentor",
+  mentorNeosId: "Mentor Neos Id",
+  created: "Created",
+  claimed: "Claimed",
+  completed: "Completed",
+  canceled: "Canceled",
+};
 
 // The source that stores tickets.
 export interface TicketStore {
@@ -38,17 +62,18 @@ export interface TicketStore {
     limit: number,
     handler: (ticket: Ticket) => void
   ) => Promise<void>;
-  getOrCreateTicket: (body: TicketGetOrCreateArgs) => Promise<Ticket>;
+  createTicket: (body: TicketCreateArgs) => Promise<Ticket>;
   getTicket: (ticket: string) => Promise<Ticket>;
 }
 
 // A ticket from a mentee requesting the assistance of a mentor.
 export interface Ticket {
   id: string;
-  getMentor: () => string | undefined;
+  getDiscordMentor: () => string | undefined;
   isCompleted: () => boolean;
   getStatus: () => Status | "unknown";
-  toPayload: (accept: string | undefined) => string;
+  toMenteePayload: (accept: string | undefined) => string;
+  toMentorPayload: (accept: string | undefined) => string;
 
   observeForReaction: (emoji: {
     [key: string]: {
@@ -125,12 +150,16 @@ class DiscordTicketStore {
       });
   };
 
-  getOrCreateTicket = (body: TicketGetOrCreateArgs): Promise<Ticket> => {
-    if ("ticket" in body && body.ticket) {
-      return this.getTicket(body.ticket);
-    }
-
-    return this.#createTicket(body);
+  createTicket = async (body: TicketCreateArgs): Promise<Ticket> => {
+    const embed = bodyToEmbed(body);
+    const msg = await this.#channel.send(embed);
+    await Promise.all([
+      msg.react(claimEmoji),
+      msg.react(unclaimEmoji),
+      msg.react(completeEmoji),
+    ]);
+    const ticket = this.#tryBindTicket(msg);
+    return ticket;
   };
 
   getTicket = async (ticket: string): Promise<Ticket> => {
@@ -148,18 +177,6 @@ class DiscordTicketStore {
     }
     return new DiscordTicket(message);
   };
-
-  #createTicket = async (body: TicketCreateArgs): Promise<Ticket> => {
-    const embed = bodyToEmbed(body);
-    const msg = await this.#channel.send(embed);
-    await Promise.all([
-      msg.react(claimEmoji),
-      msg.react(unclaimEmoji),
-      msg.react(completeEmoji),
-    ]);
-    const ticket = this.#tryBindTicket(msg);
-    return ticket;
-  };
 }
 
 // A ticket backed by a discord message.
@@ -173,9 +190,9 @@ class DiscordTicket {
     this.id = this.#ticket.id;
   }
 
-  getMentor = (): Discord.Snowflake | undefined =>
+  getDiscordMentor = (): Discord.Snowflake | undefined =>
     this.#ticket.embeds[0].fields
-      .find((f) => f.name === "Mentor")
+      .find((f) => f.name === fieldNames.mentorDiscordId)
       ?.value.replace("<@", "")
       .replace(">", "");
 
@@ -184,22 +201,49 @@ class DiscordTicket {
     return title !== requested && title !== responding;
   };
 
-  toPayload = (accept: string | undefined): string => {
+  toMenteePayload = (accept: string | undefined): string => {
     const embed = this.#ticket.embeds[0];
-    const mentor = embed.fields.find((f) => f.name === "Mentor Name")?.value;
+    const mentor = embed.fields.find(
+      (f) => f.name === fieldNames.mentorName
+    )?.value;
+    const mentorNeosId = embed.fields.find(
+      (f) => f.name === fieldNames.mentorNeosId
+    )?.value;
 
     const toSend: {
       ticket: string;
       status: string;
       mentor?: string;
+      mentorNeosId?: string;
     } = {
       ticket: this.#ticket.id,
       status: this.getStatus(),
+      mentor,
+      mentorNeosId,
     };
 
-    if (mentor) {
-      toSend.mentor = mentor;
-    }
+    return toStr(toSend, accept);
+  };
+  toMentorPayload = (accept: string | undefined): string => {
+    const embed = this.#ticket.embeds[0];
+    const session = embed.fields.find(
+      (f) => f.name === fieldNames.session
+    )?.value;
+    const sessionId = embed.fields.find(
+      (f) => f.name === fieldNames.sessionId
+    )?.value;
+
+    const toSend: {
+      ticket: string;
+      status: string;
+      session?: string;
+      sessionId?: string;
+    } = {
+      ticket: this.#ticket.id,
+      status: this.getStatus(),
+      session,
+      sessionId,
+    };
 
     return toStr(toSend, accept);
   };
@@ -218,32 +262,52 @@ class DiscordTicket {
 
   setCanceled = async (): Promise<Ticket> => {
     if (this.getStatus() === "requested" || this.getStatus() === "responding") {
-      await this.#editTicket((embed) => embed.setTitle(canceled));
-    }
-    return this;
-  };
-
-  setResponding = async (
-    mentor: Discord.User | Discord.PartialUser
-  ): Promise<Ticket> => {
-    if (this.getStatus() === "requested") {
       await this.#editTicket((embed) =>
         embed
-          .setTitle(responding)
-          .spliceFields(1, 0, [
-            { name: "Mentor", value: mentor, inline: true },
-            { name: "Mentor Name", value: mentor.username, inline: true },
-          ])
-          .addField("Claimed", new Date(Date.now()))
+          .setTitle(canceled)
+          .addField(fieldNames.canceled, new Date(Date.now()))
       );
     }
     return this;
   };
 
-  setCompleted = async (): Promise<Ticket> => {
-    if (this.getStatus() === "responding") {
+  setResponding = async (
+    mentor: Discord.User | Discord.PartialUser | NeosMentor
+  ): Promise<Ticket> => {
+    if (this.getStatus() === "requested") {
       await this.#editTicket((embed) =>
-        embed.setTitle(completed).addField("Completed", new Date(Date.now()))
+        embed
+          .setTitle(responding)
+          .spliceFields(
+            1,
+            0,
+            "neosId" in mentor
+              ? [
+                  {
+                    name: fieldNames.mentorName,
+                    value: mentor.name,
+                    inline: true,
+                  },
+                  {
+                    name: fieldNames.mentorNeosId,
+                    value: mentor.neosId,
+                    inline: true,
+                  },
+                ]
+              : [
+                  {
+                    name: fieldNames.mentorDiscordId,
+                    value: mentor,
+                    inline: true,
+                  },
+                  {
+                    name: fieldNames.mentorName,
+                    value: mentor.username,
+                    inline: true,
+                  },
+                ]
+          )
+          .addField(fieldNames.claimed, new Date(Date.now()))
       );
     }
     return this;
@@ -252,9 +316,23 @@ class DiscordTicket {
   setRequested = async (): Promise<Ticket> => {
     if (this.getStatus() === "responding") {
       await this.#editTicket((embed) =>
-        removeFields(embed, ["Mentor", "Claimed", "Mentor Name"]).setTitle(
-          requested
-        )
+        removeFields(embed, [
+          fieldNames.claimed,
+          fieldNames.mentorName,
+          fieldNames.mentorDiscordId,
+          fieldNames.mentorNeosId,
+        ]).setTitle(requested)
+      );
+    }
+    return this;
+  };
+
+  setCompleted = async (): Promise<Ticket> => {
+    if (this.getStatus() === "responding") {
+      await this.#editTicket((embed) =>
+        embed
+          .setTitle(completed)
+          .addField(fieldNames.completed, new Date(Date.now()))
       );
     }
     return this;
@@ -275,7 +353,7 @@ class DiscordTicket {
           !reaction.me &&
           emoji[reaction.emoji.name] !== undefined &&
           (!emoji[reaction.emoji.name].mentorOnly ||
-            user.id === this.getMentor()),
+            user.id === this.getDiscordMentor()),
         { max: 1 }
       )
       .once("collect", (reaction, user) =>
@@ -283,24 +361,6 @@ class DiscordTicket {
       );
   };
 }
-
-const createFields = {
-  name: "User",
-  lang: "Language",
-  desc: "Description",
-  session: "Session",
-  sessionUrl: "Session Url",
-  sessionWebUrl: "Session Web Url",
-};
-
-const fields = {
-  ...createFields,
-  created: "Created",
-};
-
-type TicketCreateArgs = {
-  [Field in keyof typeof createFields]: string | undefined;
-};
 
 const bodyToEmbed = (body: TicketCreateArgs): Discord.MessageEmbed => {
   const result: Record<string, string> = {};
@@ -319,7 +379,10 @@ const bodyToEmbed = (body: TicketCreateArgs): Discord.MessageEmbed => {
   const embed = Object.keys(result)
     .reduce(
       (prev, cur) =>
-        prev.addField(fields[cur as keyof typeof createFields], result[cur]),
+        prev.addField(
+          fieldNames[cur as keyof typeof createFields],
+          result[cur]
+        ),
       new Discord.MessageEmbed().setTitle(requested)
     )
     .addField("Created", new Date(Date.now()));

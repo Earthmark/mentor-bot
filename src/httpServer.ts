@@ -5,7 +5,7 @@ import ws from "ws";
 import { MenteeHandler, MenteeResponse } from "./mentee_ws_handler";
 import { toObj } from "./req";
 import { logProm } from "./prom_catch";
-import { TicketGetOrCreateArgs } from "./ticket";
+import { TicketCreateArgs } from "./ticket";
 
 // The http server is created here, routing websocket requests to a provided handler.
 // This also does health check support through provided callbacks.
@@ -35,7 +35,7 @@ const handleWs = (
   }>
 ) => {
   const wss = new ws.Server({
-    host: `ws://www.host.com/${route}`,
+    host: `ws://www.host.com${route}`,
     noServer: true,
     server: server,
   });
@@ -82,18 +82,22 @@ export const createServer = (data: {
   const server = app.listen(data.port);
 
   // TODO: Verify these arguments more aggressively.
-  handleWs("mentee", server, async (ctor, accept, outboundHandler, close) => {
-    const { inboundHandler, onClose } = await data.menteeHandler(
-      ctor as TicketGetOrCreateArgs,
-      (outbound) => outboundHandler(outbound.toPayload(accept)),
-      () => close()
-    );
-    return {
-      inboundHandler: (arg) =>
-        inboundHandler(toObj(arg, accept) as MenteeResponse),
-      onClose: onClose,
-    };
-  });
+  handleWs(
+    "/ws/mentee",
+    server,
+    async (ctor, accept, outboundHandler, close) => {
+      const { inboundHandler, onClose } = await data.menteeHandler(
+        ctor as TicketCreateArgs | { ticket: string },
+        (outbound) => outboundHandler(outbound.toMenteePayload(accept)),
+        () => close()
+      );
+      return {
+        inboundHandler: (arg) =>
+          inboundHandler(toObj(arg, accept) as MenteeResponse),
+        onClose: onClose,
+      };
+    }
+  );
 
   return server;
 };

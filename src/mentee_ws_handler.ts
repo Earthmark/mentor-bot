@@ -1,4 +1,4 @@
-import { Ticket, TicketStore, TicketGetOrCreateArgs } from "./ticket";
+import { Ticket, TicketStore, TicketCreateArgs } from "./ticket";
 import { SubscriptionNotifier } from "./subs";
 import { logProm } from "./prom_catch";
 
@@ -11,7 +11,7 @@ export type MenteeResponse = {
 };
 
 export type MenteeHandler = (
-  getOrCreate: TicketGetOrCreateArgs,
+  getOrCreate: TicketCreateArgs | { ticket: string },
   outboundHandler: (req: MenteeRequest) => void,
   close: () => void
 ) => Promise<{
@@ -32,7 +32,9 @@ export const createWsServer = (data: {
   const stopDelay = data.stopDelay;
 
   return async (getOrCreate, outboundHandler, close) => {
-    const ticket = await store.getOrCreateTicket(getOrCreate);
+    const ticket = await ("ticket" in getOrCreate && getOrCreate.ticket
+      ? store.getTicket(getOrCreate.ticket)
+      : store.createTicket(getOrCreate as TicketCreateArgs));
 
     const id = ticket.id;
 
