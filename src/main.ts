@@ -15,11 +15,11 @@ logProm("Failure during startup")(async () => {
   const channel = createChannel<Ticket>();
 
   // We first bind to the discord channel, if that fails there's no reason to continue (we don't have a DB).
-  const store = await createDiscordStore(
-    process.env.BOT_TOKEN ?? "",
-    process.env.BOT_CHANNEL ?? "",
-    channel
-  );
+  const store = await createDiscordStore({
+    token: process.env.BOT_TOKEN ?? "",
+    channel: process.env.BOT_CHANNEL ?? "",
+    notifier: channel,
+  });
 
   // This creates the handler used to process web sockets from the client.
   const menteeHandler = createMenteeHandler({

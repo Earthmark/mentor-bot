@@ -91,11 +91,15 @@ export interface Ticket {
   setRequested: () => Promise<Ticket>;
 }
 
-export default async (
-  token: string,
-  channel: string,
-  notifier: Notifier<Ticket>
-): Promise<TicketStore> => {
+export default async ({
+  token,
+  channel,
+  notifier,
+}: {
+  token: string;
+  channel: string;
+  notifier: Notifier<Ticket>;
+}): Promise<TicketStore> => {
   const client = new Discord.Client();
 
   await client.login(token);
