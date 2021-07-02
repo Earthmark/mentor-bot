@@ -122,6 +122,7 @@ export default async ({
 class DiscordTicketStore {
   #channel: Discord.TextChannel | Discord.DMChannel | Discord.NewsChannel;
   #notifier: Notifier<Ticket>;
+  #ticketCache: Record<string, Promise<Ticket>> = {};
   constructor(
     channel: Discord.TextChannel | Discord.DMChannel | Discord.NewsChannel,
     notifier: Notifier<Ticket>
@@ -133,12 +134,7 @@ class DiscordTicketStore {
   observeTickets = (handler: (ticket: Ticket) => void): (() => boolean) => {
     const collection = this.#channel
       .createMessageCollector((msg) => msg.client.user === msg.author)
-      .on("collect", (msg) => {
-        const ticket = this.#tryBindTicket(msg);
-        if (ticket) {
-          handler(ticket);
-        }
-      });
+      .on("collect", (msg) => this.getTicket(msg.id).then(handler));
     return () => !collection.ended;
   };
 
@@ -151,12 +147,7 @@ class DiscordTicketStore {
     });
     collection
       .filter((msg) => msg.client.user === msg.author)
-      .forEach((msg) => {
-        const ticket = this.#tryBindTicket(msg);
-        if (ticket) {
-          handler(ticket);
-        }
-      });
+      .forEach((msg) => this.getTicket(msg.id).then(handler));
   };
 
   createTicket = async (body: TicketCreateArgs): Promise<Ticket> => {
@@ -167,12 +158,21 @@ class DiscordTicketStore {
       msg.react(unclaimEmoji),
       msg.react(completeEmoji),
     ]);
-    const ticket = this.#tryBindTicket(msg);
-    return ticket;
+    return this.getTicket(msg.id);
   };
 
-  getTicket = async (ticket: string): Promise<Ticket> => {
-    return this.#tryBindTicket(await this.#channel.messages.fetch(ticket));
+  getTicket = (ticket: string): Promise<Ticket> => {
+    if (!this.#ticketCache[ticket]) {
+      const create = this.#channel.messages
+        .fetch(ticket)
+        .then(this.#tryBindTicket);
+      this.#ticketCache[ticket] = create;
+      // If we fail to create a ticket, then remove it from the cache.
+      create.catch((_err) => {
+        delete this.#ticketCache[ticket];
+      });
+    }
+    return this.#ticketCache[ticket];
   };
 
   #tryBindTicket = (message: Discord.Message): Ticket => {
@@ -192,10 +192,11 @@ class DiscordTicketStore {
 class DiscordTicket {
   #ticket: Discord.Message;
   #notifier: Notifier<Ticket>;
-
+  #writerLock: Promise<void>;
   id: string;
 
   constructor(ticket: Discord.Message, notifier: Notifier<Ticket>) {
+    this.#writerLock = Promise.resolve();
     this.#ticket = ticket;
     this.#notifier = notifier;
     this.id = this.#ticket.id;
@@ -235,6 +236,7 @@ class DiscordTicket {
 
     return toStr(toSend, accept);
   };
+
   toMentorPayload = (accept: string | undefined): string => {
     const embed = this.#ticket.embeds[0];
     const session = embed.fields.find(
@@ -263,14 +265,19 @@ class DiscordTicket {
     return statusMap[this.#ticket.embeds[0].title ?? ""] ?? "unknown";
   };
 
-  #editTicket = async (
+  // Edit ensures synchronicity via a promise chain,
+  // if multiple servers are running this is a race condition,
+  // but it always resolves with a stable state. This just means we edit synchronously.
+  #editTicket = (
     mutator: (embed: Discord.MessageEmbed) => Discord.MessageEmbed
-  ): Promise<void> => {
-    this.#ticket = await this.#ticket.edit(
-      mutator(new Discord.MessageEmbed(this.#ticket.embeds[0]))
-    );
-    this.#notifier.invoke(this);
-  };
+  ): Promise<void> =>
+    (this.#writerLock = this.#writerLock.then(async () => {
+      // Await the box, so current changes are processed first.
+      this.#ticket = await this.#ticket.edit(
+        mutator(new Discord.MessageEmbed(this.#ticket.embeds[0]))
+      );
+      this.#notifier.invoke(this);
+    }));
 
   setCanceled = async (): Promise<Ticket> => {
     if (this.getStatus() === "requested" || this.getStatus() === "responding") {
