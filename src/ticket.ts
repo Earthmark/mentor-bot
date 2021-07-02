@@ -1,6 +1,7 @@
 import Discord from "discord.js";
 
-import { toStr } from "./req.js";
+import { toStr } from "./req";
+import { Notifier } from "./channel";
 
 // This is the main adaptation layer between Discord and the service,
 // ticket operations are routed through this file.
@@ -92,7 +93,8 @@ export interface Ticket {
 
 export const createDiscordStore = async (
   token: string,
-  channel: string
+  channel: string,
+  notifier: Notifier<Ticket>
 ): Promise<TicketStore> => {
   const client = new Discord.Client();
 
@@ -103,7 +105,7 @@ export const createDiscordStore = async (
     if (!chan || !chan.isText()) {
       throw new Error("Bound to invalid channel.");
     }
-    return new DiscordTicketStore(chan);
+    return new DiscordTicketStore(chan, notifier);
   } catch (e) {
     client.destroy();
     throw new Error(
@@ -115,10 +117,13 @@ export const createDiscordStore = async (
 // The interface between discord and the ticket service.
 class DiscordTicketStore {
   #channel: Discord.TextChannel | Discord.DMChannel | Discord.NewsChannel;
+  #notifier: Notifier<Ticket>;
   constructor(
-    channel: Discord.TextChannel | Discord.DMChannel | Discord.NewsChannel
+    channel: Discord.TextChannel | Discord.DMChannel | Discord.NewsChannel,
+    notifier: Notifier<Ticket>
   ) {
     this.#channel = channel;
+    this.#notifier = notifier;
   }
 
   observeTickets = (handler: (ticket: Ticket) => void): (() => boolean) => {
@@ -175,18 +180,20 @@ class DiscordTicketStore {
     if (title === null || statusMap[title] === undefined) {
       throw new Error("Message embed did not have a title, likely invalid.");
     }
-    return new DiscordTicket(message);
+    return new DiscordTicket(message, this.#notifier);
   };
 }
 
 // A ticket backed by a discord message.
 class DiscordTicket {
   #ticket: Discord.Message;
+  #notifier: Notifier<Ticket>;
 
   id: string;
 
-  constructor(ticket: Discord.Message) {
+  constructor(ticket: Discord.Message, notifier: Notifier<Ticket>) {
     this.#ticket = ticket;
+    this.#notifier = notifier;
     this.id = this.#ticket.id;
   }
 
@@ -258,6 +265,7 @@ class DiscordTicket {
     this.#ticket = await this.#ticket.edit(
       mutator(new Discord.MessageEmbed(this.#ticket.embeds[0]))
     );
+    this.#notifier.invoke(this);
   };
 
   setCanceled = async (): Promise<Ticket> => {

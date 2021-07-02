@@ -5,7 +5,6 @@ import {
   unclaimEmoji,
   completeEmoji,
 } from "./ticket";
-import { Notifier } from "./channel";
 import { log } from "./prom_catch";
 
 // This observes added tickets for reactions, and advances the state machine if found.
@@ -18,12 +17,11 @@ const processRespondingErr = log("Error while replying to a responding ticket");
 
 export const maintainDiscordLink = async (
   store: TicketStore,
-  notifier: Notifier<Ticket>,
   historyLimit: number
 ): Promise<() => boolean> => {
   const observeTicket = (ticket: Ticket): void => {
     const ensureReload = <T>(handler: Promise<T>): Promise<T> =>
-      handler.finally(() => observeTicket(notifier.invoke(ticket)));
+      handler.finally(() => observeTicket(ticket));
 
     // Requested can go to Responding or Canceled (canceled is through the ws server).
     ticket.observeForReaction({

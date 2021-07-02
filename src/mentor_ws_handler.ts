@@ -1,26 +1,19 @@
 import { Ticket, TicketStore } from "./ticket";
-import { Notifier, Subscriber } from "./channel";
+import { Subscriber } from "./channel";
 import { logProm } from "./prom_catch";
 import { WsHandler } from "./httpServer";
 import { toObj } from "./req";
 
 // Websocket handling is defined here, but this is not the actual server.
 
-type MentorInfo = {
-  name: string;
-  neosId: string;
-};
+const inboundHandler = logProm("Error while handling inbound mentor request");
 
-const inboundHandler = logProm("Error while handling inbound mentee request");
-
-// This represents a websocket server clients can create tickets through.
-export const createWsServer = ({
+export default ({
   store,
-  notifier,
+  subscriber,
 }: {
   store: TicketStore;
-  notifier: Notifier<Ticket> & Subscriber<Ticket>;
-  stopDelay: number;
+  subscriber: Subscriber<Ticket>;
 }): WsHandler => {
   // TODO: Verify these arguments more aggressively.
   return async (args, accept, outboundHandler, _close) => {
@@ -38,26 +31,20 @@ export const createWsServer = ({
             const ticket = await store.getTicket(ticketId);
             if (m.type === "claim") {
               outboundHandler(
-                notifier
-                  .invoke(
-                    await ticket.setResponding({
-                      name,
-                      neosId,
-                    })
-                  )
-                  .toMenteePayload(accept)
+                (
+                  await ticket.setResponding({
+                    name,
+                    neosId,
+                  })
+                ).toMenteePayload(accept)
               );
             } else if (m.type === "complete") {
               outboundHandler(
-                notifier
-                  .invoke(await ticket.setCompleted())
-                  .toMenteePayload(accept)
+                (await ticket.setCompleted()).toMenteePayload(accept)
               );
             } else if (m.type === "unclaim") {
               outboundHandler(
-                notifier
-                  .invoke(await ticket.setRequested())
-                  .toMenteePayload(accept)
+                (await ticket.setRequested()).toMenteePayload(accept)
               );
             }
           }

@@ -1,5 +1,5 @@
 import { Ticket, TicketStore, TicketCreateArgs } from "./ticket";
-import { Notifier, Subscriber } from "./channel";
+import { Subscriber } from "./channel";
 import { logProm } from "./prom_catch";
 import { WsHandler } from "./httpServer";
 import { toObj } from "./req";
@@ -7,13 +7,13 @@ import { toObj } from "./req";
 const inboundHandler = logProm("Error while handling inbound mentee request");
 
 // This represents a websocket server clients can create tickets through.
-export const createWsServer = ({
+export default ({
   store,
-  notifier,
+  subscriber,
   stopDelay,
 }: {
   store: TicketStore;
-  notifier: Notifier<Ticket> & Subscriber<Ticket>;
+  subscriber: Subscriber<Ticket>;
   stopDelay: number;
 }): WsHandler => {
   // TODO: Verify these arguments more aggressively.
@@ -39,7 +39,7 @@ export const createWsServer = ({
 
     broadcastTicket(ticket);
 
-    const sub = notifier.subscribe(id, broadcastTicket);
+    const sub = subscriber.subscribe(id, broadcastTicket);
 
     return {
       inboundHandler: (msg) =>
@@ -49,13 +49,12 @@ export const createWsServer = ({
           };
           if (m.type === "cancel") {
             const ticket = await store.getTicket(id);
-            const canceledTicket = await ticket.setCanceled();
-            notifier.invoke(canceledTicket);
+            await ticket.setCanceled();
           } else {
             throw new Error("Unsupported message type.");
           }
         }),
-      onClose: () => notifier.unsubscribe(sub),
+      onClose: () => subscriber.unsubscribe(sub),
     };
   };
 };
