@@ -62,7 +62,7 @@ const handleWs = (route: string, server: http.Server, handler: WsHandler) => {
   );
 };
 
-export const createServer = (data: {
+export default (data: {
   port: number;
   healthChecks: HealthCallback[];
   menteeHandler: WsHandler;

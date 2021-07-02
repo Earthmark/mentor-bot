@@ -1,7 +1,7 @@
 import assert from "assert";
 import { describe } from "mocha";
 
-import { createChannel } from "./channel";
+import createChannel from "./channel";
 import { Ticket } from "./ticket";
 
 const id = "1";

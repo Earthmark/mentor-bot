@@ -91,7 +91,7 @@ export interface Ticket {
   setRequested: () => Promise<Ticket>;
 }
 
-export const createDiscordStore = async (
+export default async (
   token: string,
   channel: string,
   notifier: Notifier<Ticket>

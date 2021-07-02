@@ -1,11 +1,11 @@
 import dotenv from "dotenv";
 
-import { createDiscordStore, Ticket } from "./ticket";
+import createDiscordStore, { Ticket } from "./ticket";
 import { maintainDiscordLink } from "./maintainer";
 import createMenteeHandler from "./mentee_ws_handler";
 import createMentorHandler from "./mentor_ws_handler";
-import { createChannel } from "./channel";
-import { createServer } from "./httpServer";
+import createChannel from "./channel";
+import createServer from "./httpServer";
 import { logProm } from "./prom_catch";
 
 dotenv.config();

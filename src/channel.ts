@@ -14,7 +14,7 @@ export type Subscriber<Notified> = {
   unsubscribe: (id: SubscriptionToken) => void;
 };
 
-export const createChannel = <
+export default <
   Notified extends {
     id: string;
   }
