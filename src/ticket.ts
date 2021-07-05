@@ -98,13 +98,16 @@ export default async ({
   token,
   channel,
   notifier,
-  client = new Discord.Client(),
+  client,
 }: {
   token: string;
   channel: string;
   notifier: Notifier<Ticket>;
-  client: Discord.Client;
+  client?: Discord.Client;
 }): Promise<TicketStore> => {
+  if (!client) {
+    client = new Discord.Client();
+  }
   await client.login(token);
 
   try {
