@@ -22,6 +22,8 @@ export default ({
       ? store.getTicket(args.ticket)
       : store.createTicket(args as TicketCreateArgs));
 
+    console.log(`Ticket ${ticket.id} created`);
+
     const id = ticket.id;
 
     const checkCanceled = (ticket: Ticket): void => {
@@ -33,6 +35,9 @@ export default ({
     };
 
     const broadcastTicket = (t: Ticket): void => {
+      console.log(
+        `Broadcasting ticket ${ticket.id} as ${t.toMenteePayload(accept)}`
+      );
       outboundHandler(t.toMenteePayload(accept));
       checkCanceled(t);
     };

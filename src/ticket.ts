@@ -2,6 +2,7 @@ import Discord from "discord.js";
 
 import { toStr } from "./req";
 import { Notifier } from "./channel";
+import { log } from "./prom_catch";
 
 // This is the main adaptation layer between Discord and the service,
 // ticket operations are routed through this file.
@@ -124,6 +125,8 @@ export default async ({
   }
 };
 
+const observeError = log("Error during observation of ticket");
+
 // The interface between discord and the ticket service.
 class DiscordTicketStore {
   #channel: Discord.TextChannel | Discord.DMChannel | Discord.NewsChannel;
@@ -140,7 +143,9 @@ class DiscordTicketStore {
   observeTickets = (handler: (ticket: Ticket) => void): (() => boolean) => {
     const collection = this.#channel
       .createMessageCollector((msg) => msg.client.user === msg.author)
-      .on("collect", (msg) => this.getTicket(msg.id).then(handler));
+      .on("collect", (msg) =>
+        observeError(this.getTicket(msg.id).then(handler))
+      );
     return () => !collection.ended;
   };
 
@@ -153,7 +158,7 @@ class DiscordTicketStore {
     });
     collection
       .filter((msg) => msg.client.user === msg.author)
-      .forEach((msg) => this.getTicket(msg.id).then(handler));
+      .forEach((msg) => observeError(this.getTicket(msg.id).then(handler)));
   };
 
   createTicket = async (body: TicketCreateArgs): Promise<Ticket> => {
@@ -303,7 +308,7 @@ class DiscordTicket {
         this.getStatus() === "requested" ||
         this.getStatus() === "responding"
       ) {
-        embed
+        return embed
           .setTitle(canceled)
           .addField(fieldNames.canceled, new Date(Date.now()));
       }
@@ -315,7 +320,7 @@ class DiscordTicket {
   ): Promise<Ticket> =>
     this.#editTicket((embed) => {
       if (this.getStatus() === "requested") {
-        embed
+        return embed
           .setTitle(responding)
           .spliceFields(
             1,

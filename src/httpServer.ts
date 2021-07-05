@@ -30,12 +30,12 @@ export type WsHandler = (
 
 const handleWs = (route: string, server: http.Server, handler: WsHandler) => {
   const wss = new ws.Server({
-    host: `ws://www.host.com${route}`,
+    path: route,
     noServer: true,
     server: server,
   });
 
-  wss.on("connection", (ws, req): void =>
+  wss.on("connection", (wsConn, req): void =>
     bindWsConnectionError(async () => {
       const url = new URL("ws://localhost" + req.url);
       const query = flagMapQuery(url.searchParams);
@@ -43,11 +43,14 @@ const handleWs = (route: string, server: http.Server, handler: WsHandler) => {
       const { inboundHandler, onClose } = await handler(
         query,
         req.headers.accept,
-        (outbound) => ws.send(outbound),
-        () => ws.close()
+        (outbound) => {
+          console.log(`Sending payload ${outbound}`);
+          wsConn.send(outbound);
+        },
+        () => wsConn.close()
       );
 
-      ws.on("message", (msg) =>
+      wsConn.on("message", (msg) =>
         messageHandlerError(async () => {
           if (typeof msg === "string") {
             inboundHandler(msg);
@@ -57,7 +60,7 @@ const handleWs = (route: string, server: http.Server, handler: WsHandler) => {
         })
       );
 
-      ws.on("close", () => onClose());
+      wsConn.on("close", () => onClose());
     })
   );
 };
