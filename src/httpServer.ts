@@ -19,7 +19,7 @@ const flagMapQuery = (query: URLSearchParams): Record<string, string> => {
 };
 
 export type WsHandler = (
-  ctor: Record<string, string>,
+  ctor: Record<string, string | undefined>,
   accept: string | undefined,
   outboundHandler: (req: string) => void,
   close: () => void

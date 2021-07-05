@@ -19,7 +19,11 @@ export default ({
   return async (args, accept, outboundHandler, _close) => {
     const name = args.name;
     const neosId = args.neosId;
-    var ticketId: string | undefined = undefined;
+    var ticketId: string | undefined = args.ticket;
+
+    if (!name || !neosId) {
+      throw new Error("Fields name and neosId not provided.");
+    }
 
     return {
       inboundHandler: (msg) =>

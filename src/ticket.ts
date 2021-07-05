@@ -32,7 +32,10 @@ type NeosMentor = {
 };
 
 export type TicketCreateArgs = {
-  [Field in keyof typeof createFields]: string | undefined;
+  [Field in keyof typeof createFields]?: string;
+} & {
+  name: string;
+  session: string;
 };
 
 const createFields = {
@@ -95,13 +98,13 @@ export default async ({
   token,
   channel,
   notifier,
+  client = new Discord.Client(),
 }: {
   token: string;
   channel: string;
   notifier: Notifier<Ticket>;
+  client: Discord.Client;
 }): Promise<TicketStore> => {
-  const client = new Discord.Client();
-
   await client.login(token);
 
   try {
@@ -192,14 +195,14 @@ class DiscordTicketStore {
 class DiscordTicket {
   #ticket: Discord.Message;
   #notifier: Notifier<Ticket>;
-  #writerLock: Promise<void>;
+  #writerLock: Promise<Ticket>;
   id: string;
 
   constructor(ticket: Discord.Message, notifier: Notifier<Ticket>) {
-    this.#writerLock = Promise.resolve();
     this.#ticket = ticket;
     this.#notifier = notifier;
     this.id = this.#ticket.id;
+    this.#writerLock = Promise.resolve(this);
   }
 
   getDiscordMentor = (): Discord.Snowflake | undefined =>
@@ -215,12 +218,6 @@ class DiscordTicket {
 
   toMenteePayload = (accept: string | undefined): string => {
     const embed = this.#ticket.embeds[0];
-    const mentor = embed.fields.find(
-      (f) => f.name === fieldNames.mentorName
-    )?.value;
-    const mentorNeosId = embed.fields.find(
-      (f) => f.name === fieldNames.mentorNeosId
-    )?.value;
 
     const toSend: {
       ticket: string;
@@ -230,21 +227,27 @@ class DiscordTicket {
     } = {
       ticket: this.#ticket.id,
       status: this.getStatus(),
-      mentor,
-      mentorNeosId,
     };
+
+    const mentor = embed.fields.find(
+      (f) => f.name === fieldNames.mentorName
+    )?.value;
+    if (mentor) {
+      toSend.mentor = mentor;
+    }
+
+    const mentorNeosId = embed.fields.find(
+      (f) => f.name === fieldNames.mentorNeosId
+    )?.value;
+    if (mentorNeosId) {
+      toSend.mentorNeosId = mentorNeosId;
+    }
 
     return toStr(toSend, accept);
   };
 
   toMentorPayload = (accept: string | undefined): string => {
     const embed = this.#ticket.embeds[0];
-    const session = embed.fields.find(
-      (f) => f.name === fieldNames.session
-    )?.value;
-    const sessionId = embed.fields.find(
-      (f) => f.name === fieldNames.sessionId
-    )?.value;
 
     const toSend: {
       ticket: string;
@@ -254,9 +257,21 @@ class DiscordTicket {
     } = {
       ticket: this.#ticket.id,
       status: this.getStatus(),
-      session,
-      sessionId,
     };
+
+    const session = embed.fields.find(
+      (f) => f.name === fieldNames.session
+    )?.value;
+    if (session) {
+      toSend.session = session;
+    }
+
+    const sessionId = embed.fields.find(
+      (f) => f.name === fieldNames.sessionId
+    )?.value;
+    if (sessionId) {
+      toSend.sessionId = sessionId;
+    }
 
     return toStr(toSend, accept);
   };
@@ -270,8 +285,8 @@ class DiscordTicket {
   // but it always resolves with a stable state. This just means we edit synchronously.
   #editTicket = (
     mutator: (embed: Discord.MessageEmbed) => Discord.MessageEmbed
-  ): Promise<void> =>
-    (this.#writerLock = this.#writerLock.then(async () => {
+  ): Promise<Ticket> =>
+    (this.#writerLock = this.#writerLock.finally(async () => {
       // Await the box, so current changes are processed first.
       this.#ticket = await this.#ticket.edit(
         mutator(new Discord.MessageEmbed(this.#ticket.embeds[0]))
@@ -279,22 +294,24 @@ class DiscordTicket {
       this.#notifier.invoke(this);
     }));
 
-  setCanceled = async (): Promise<Ticket> => {
-    if (this.getStatus() === "requested" || this.getStatus() === "responding") {
-      await this.#editTicket((embed) =>
+  setCanceled = (): Promise<Ticket> =>
+    this.#editTicket((embed) => {
+      if (
+        this.getStatus() === "requested" ||
+        this.getStatus() === "responding"
+      ) {
         embed
           .setTitle(canceled)
-          .addField(fieldNames.canceled, new Date(Date.now()))
-      );
-    }
-    return this;
-  };
+          .addField(fieldNames.canceled, new Date(Date.now()));
+      }
+      throw new Error("Ticket is not in a requested or responding state.");
+    });
 
-  setResponding = async (
+  setResponding = (
     mentor: Discord.User | Discord.PartialUser | NeosMentor
-  ): Promise<Ticket> => {
-    if (this.getStatus() === "requested") {
-      await this.#editTicket((embed) =>
+  ): Promise<Ticket> =>
+    this.#editTicket((embed) => {
+      if (this.getStatus() === "requested") {
         embed
           .setTitle(responding)
           .spliceFields(
@@ -326,36 +343,33 @@ class DiscordTicket {
                   },
                 ]
           )
-          .addField(fieldNames.claimed, new Date(Date.now()))
-      );
-    }
-    return this;
-  };
+          .addField(fieldNames.claimed, new Date(Date.now()));
+      }
+      throw new Error("Ticket is not in a requested state.");
+    });
 
-  setRequested = async (): Promise<Ticket> => {
-    if (this.getStatus() === "responding") {
-      await this.#editTicket((embed) =>
-        removeFields(embed, [
+  setRequested = async (): Promise<Ticket> =>
+    this.#editTicket((embed) => {
+      if (this.getStatus() === "responding") {
+        return removeFields(embed, [
           fieldNames.claimed,
           fieldNames.mentorName,
           fieldNames.mentorDiscordId,
           fieldNames.mentorNeosId,
-        ]).setTitle(requested)
-      );
-    }
-    return this;
-  };
+        ]).setTitle(requested);
+      }
+      throw new Error("Ticket is not in a responding state.");
+    });
 
-  setCompleted = async (): Promise<Ticket> => {
-    if (this.getStatus() === "responding") {
-      await this.#editTicket((embed) =>
-        embed
+  setCompleted = async (): Promise<Ticket> =>
+    this.#editTicket((embed) => {
+      if (this.getStatus() === "responding") {
+        return embed
           .setTitle(completed)
-          .addField(fieldNames.completed, new Date(Date.now()))
-      );
-    }
-    return this;
-  };
+          .addField(fieldNames.completed, new Date(Date.now()));
+      }
+      throw new Error("Ticket is not in a responding state.");
+    });
 
   observeForReaction = (emoji: {
     [key: string]: {
@@ -372,6 +386,8 @@ class DiscordTicket {
           !reaction.me &&
           emoji[reaction.emoji.name] !== undefined &&
           (!emoji[reaction.emoji.name].mentorOnly ||
+            // This may fail if a neos mentor claimed the ticket,
+            // but that's fine as the reaction still won't work.
             user.id === this.getDiscordMentor()),
         { max: 1 }
       )
