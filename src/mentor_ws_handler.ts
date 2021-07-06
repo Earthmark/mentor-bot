@@ -25,6 +25,8 @@ export default ({
       throw new Error("Fields name and neosId not provided.");
     }
 
+    _close();
+
     return {
       inboundHandler: (msg) =>
         inboundHandler(async () => {

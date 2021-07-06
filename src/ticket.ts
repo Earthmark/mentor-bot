@@ -203,14 +203,12 @@ class DiscordTicketStore {
 class DiscordTicket {
   #ticket: Discord.Message;
   #notifier: Notifier<Ticket>;
-  #writerLock: Promise<Ticket>;
   id: string;
 
   constructor(ticket: Discord.Message, notifier: Notifier<Ticket>) {
     this.#ticket = ticket;
     this.#notifier = notifier;
     this.id = this.#ticket.id;
-    this.#writerLock = Promise.resolve(this);
   }
 
   getDiscordMentor = (): Discord.Snowflake | undefined =>
@@ -291,93 +289,85 @@ class DiscordTicket {
   // Edit ensures synchronicity via a promise chain,
   // if multiple servers are running this is a race condition,
   // but it always resolves with a stable state. This just means we edit synchronously.
-  #editTicket = (
+  #editTicket = async (
+    expectedState: Array<Status>,
     mutator: (embed: Discord.MessageEmbed) => Discord.MessageEmbed
-  ): Promise<Ticket> =>
-    (this.#writerLock = this.#writerLock.finally(async () => {
-      // Await the box, so current changes are processed first.
-      this.#ticket = await this.#ticket.edit(
-        mutator(new Discord.MessageEmbed(this.#ticket.embeds[0]))
+  ): Promise<Ticket> => {
+    const status = this.getStatus();
+    if (!expectedState.some((ent) => ent === status)) {
+      throw new Error(
+        `Ticket is not in the expected state, current state is ${status}, expected ${expectedState}`
       );
-      this.#notifier.invoke(this);
-    }));
+    }
+    // Await the box, so current changes are processed first.
+    this.#ticket = await this.#ticket.edit(
+      mutator(new Discord.MessageEmbed(this.#ticket.embeds[0]))
+    );
+    this.#notifier.invoke(this);
+    return this;
+  };
 
   setCanceled = (): Promise<Ticket> =>
-    this.#editTicket((embed) => {
-      if (
-        this.getStatus() === "requested" ||
-        this.getStatus() === "responding"
-      ) {
-        return embed
-          .setTitle(canceled)
-          .addField(fieldNames.canceled, new Date(Date.now()));
-      }
-      throw new Error("Ticket is not in a requested or responding state.");
-    });
+    this.#editTicket(["responding", "requested"], (embed) =>
+      embed
+        .setTitle(canceled)
+        .addField(fieldNames.canceled, new Date(Date.now()))
+    );
 
   setResponding = (
     mentor: Discord.User | Discord.PartialUser | NeosMentor
   ): Promise<Ticket> =>
-    this.#editTicket((embed) => {
-      if (this.getStatus() === "requested") {
-        return embed
-          .setTitle(responding)
-          .spliceFields(
-            1,
-            0,
-            "neosId" in mentor
-              ? [
-                  {
-                    name: fieldNames.mentorName,
-                    value: mentor.name,
-                    inline: true,
-                  },
-                  {
-                    name: fieldNames.mentorNeosId,
-                    value: mentor.neosId,
-                    inline: true,
-                  },
-                ]
-              : [
-                  {
-                    name: fieldNames.mentorDiscordId,
-                    value: mentor,
-                    inline: true,
-                  },
-                  {
-                    name: fieldNames.mentorName,
-                    value: mentor.username,
-                    inline: true,
-                  },
-                ]
-          )
-          .addField(fieldNames.claimed, new Date(Date.now()));
-      }
-      throw new Error("Ticket is not in a requested state.");
-    });
+    this.#editTicket(["requested"], (embed) =>
+      embed
+        .setTitle(responding)
+        .spliceFields(
+          1,
+          0,
+          "neosId" in mentor
+            ? [
+                {
+                  name: fieldNames.mentorName,
+                  value: mentor.name,
+                  inline: true,
+                },
+                {
+                  name: fieldNames.mentorNeosId,
+                  value: mentor.neosId,
+                  inline: true,
+                },
+              ]
+            : [
+                {
+                  name: fieldNames.mentorDiscordId,
+                  value: mentor,
+                  inline: true,
+                },
+                {
+                  name: fieldNames.mentorName,
+                  value: mentor.username,
+                  inline: true,
+                },
+              ]
+        )
+        .addField(fieldNames.claimed, new Date(Date.now()))
+    );
 
   setRequested = async (): Promise<Ticket> =>
-    this.#editTicket((embed) => {
-      if (this.getStatus() === "responding") {
-        return removeFields(embed, [
-          fieldNames.claimed,
-          fieldNames.mentorName,
-          fieldNames.mentorDiscordId,
-          fieldNames.mentorNeosId,
-        ]).setTitle(requested);
-      }
-      throw new Error("Ticket is not in a responding state.");
-    });
+    this.#editTicket(["responding"], (embed) =>
+      removeFields(embed, [
+        fieldNames.claimed,
+        fieldNames.mentorName,
+        fieldNames.mentorDiscordId,
+        fieldNames.mentorNeosId,
+      ]).setTitle(requested)
+    );
 
   setCompleted = async (): Promise<Ticket> =>
-    this.#editTicket((embed) => {
-      if (this.getStatus() === "responding") {
-        return embed
-          .setTitle(completed)
-          .addField(fieldNames.completed, new Date(Date.now()));
-      }
-      throw new Error("Ticket is not in a responding state.");
-    });
+    this.#editTicket(["responding"], (embed) =>
+      embed
+        .setTitle(completed)
+        .addField(fieldNames.completed, new Date(Date.now()))
+    );
 
   observeForReaction = (emoji: {
     [key: string]: {

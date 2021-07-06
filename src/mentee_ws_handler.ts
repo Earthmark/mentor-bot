@@ -4,7 +4,9 @@ import { logProm } from "./prom_catch";
 import { WsHandler } from "./httpServer";
 import { toObj } from "./req";
 
-const inboundHandler = logProm("Error while handling inbound mentee request");
+const inboundHandlerGuard = logProm(
+  "Error while handling inbound mentee request"
+);
 
 // This represents a websocket server clients can create tickets through.
 export default ({
@@ -22,8 +24,6 @@ export default ({
       ? store.getTicket(args.ticket)
       : store.createTicket(args as TicketCreateArgs));
 
-    console.log(`Ticket ${ticket.id} created`);
-
     const id = ticket.id;
 
     const checkCanceled = (ticket: Ticket): void => {
@@ -35,9 +35,6 @@ export default ({
     };
 
     const broadcastTicket = (t: Ticket): void => {
-      console.log(
-        `Broadcasting ticket ${ticket.id} as ${t.toMenteePayload(accept)}`
-      );
       outboundHandler(t.toMenteePayload(accept));
       checkCanceled(t);
     };
@@ -48,7 +45,7 @@ export default ({
 
     return {
       inboundHandler: (msg) =>
-        inboundHandler(async () => {
+        inboundHandlerGuard(async () => {
           const m = toObj(msg) as {
             type: "cancel";
           };
