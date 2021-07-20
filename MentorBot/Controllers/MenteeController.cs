@@ -1,7 +1,6 @@
 ﻿using MentorBot.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using System;
 using System.Threading.Tasks;
 
 namespace MentorBot.Controllers
@@ -19,7 +18,7 @@ namespace MentorBot.Controllers
       _store = store;
     }
 
-    [HttpPost("mentee")]
+    [HttpPost("mentee"), Throttle(6, Name = "Ticket Create")]
     public async ValueTask<ActionResult<Ticket>> Create([TicketCreateBind] TicketCreate createArgs)
     {
       var ticket = await _store.CreateTicket(createArgs.ToTicket(), HttpContext.RequestAborted);
@@ -30,10 +29,10 @@ namespace MentorBot.Controllers
       return ticket;
     }
 
-    [HttpGet("mentee/{ticketId}")]
+    [HttpGet("mentee/{ticketId}"), Throttle(3, Name = "Ticket Get")]
     public async ValueTask<ActionResult<Ticket>> Get(ulong ticketId)
     {
-      var ticket = await _store.GetTicketAsync(ticketId, HttpContext.RequestAborted);
+      var ticket = await _store.GetTicketAsync(ticketId.ToString(), HttpContext.RequestAborted);
       if (ticket == null)
       {
         return NotFound();
@@ -41,7 +40,7 @@ namespace MentorBot.Controllers
       return ticket;
     }
 
-    [HttpGet("ws/mentee")]
+    [HttpGet("ws/mentee"), Throttle(6, Name = "Ticket Create")]
     public async ValueTask<ActionResult<Ticket>> CreateTicket([TicketCreateBind] TicketCreate createArgs)
     {
       if (HttpContext.WebSockets.IsWebSocketRequest)
@@ -56,7 +55,7 @@ namespace MentorBot.Controllers
       }
     }
 
-    [HttpGet("ws/mentee/{ticketId}")]
+    [HttpGet("ws/mentee/{ticketId}"), Throttle(3, Name = "Ticket Get")]
     public async ValueTask Retrieve(ulong ticketId)
     {
       if (HttpContext.WebSockets.IsWebSocketRequest)

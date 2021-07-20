@@ -4,10 +4,9 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
-using System;
 using MentorBot.ExternDiscord;
+using Microsoft.Azure.Cosmos;
 
 namespace MentorBot
 {
@@ -23,29 +22,22 @@ namespace MentorBot
     public void ConfigureServices(IServiceCollection services)
     {
       services.Configure<DiscordOptions>(Configuration.GetSection("Discord"));
+      services.Configure<CosmosOptions>(Configuration.GetSection("Cosmos"));
+
       services.AddSingleton<DiscordContext>();
       services.AddHostedService(o => o.GetRequiredService<DiscordContext>());
-      services.AddTransient<IDiscordReactionHandler, DiscordReactionMentorHandler>();
+      services.AddTransient<IDiscordReactionHandler, TicketStore>();
 
-      services.AddDbContext<TicketContext>(options =>
-      {
-        switch (Configuration.GetValue<string>("Provider"))
-        {
-          case "sqlite":
-            options.UseSqlite(Configuration.GetConnectionString("TicketSqlLiteContext"));
-            break;
-          case "npgsql":
-            options.UseNpgsql(Configuration.GetConnectionString("TicketNpgsqlContext"));
-            break;
-          default:
-            throw new InvalidOperationException("No database provider selected.");
-        }
-      });
+      services.AddSingleton(options => new CosmosClient(Configuration.GetConnectionString("Cosmos")));
 
+      services.AddTransient<TicketContext>();
       services.AddTransient<TicketStore>();
+      services.AddTransient<MentorContext>();
+
+      services.AddSingleton<ITicketNotifier, TicketNotifier>();
 
       services.AddSwaggerGen(c => c.SwaggerDoc("v1", new OpenApiInfo { Title = "Mentor Signal", Version = "v1" }));
-      services.AddHealthChecks().AddDbContextCheck<TicketContext>();
+      services.AddHealthChecks().AddCheck<CosmosHealthCheck>("database");
       services.AddControllers();
     }
 

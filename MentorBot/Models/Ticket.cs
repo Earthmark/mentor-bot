@@ -1,9 +1,9 @@
 ﻿using Discord;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
 using System.Linq;
 
 namespace MentorBot.Models
@@ -43,44 +43,46 @@ namespace MentorBot.Models
     }
   }
 
-  [Index(nameof(UserId))]
-  [Index(nameof(MentorDiscordId))]
-  [Index(nameof(MentorNeosId))]
-  [Index(nameof(SessionId))]
+  [JsonObject]
   public class Ticket
   {
+    [JsonProperty("status"), JsonConverter(typeof(StringEnumConverter))]
     public TicketStatus Status { get; set; } = TicketStatus.Requested;
 
-    [Required]
+    [JsonProperty("menteeName")]
     public string Username { get; init; } = string.Empty;
-    [Required]
+    [JsonProperty("menteeId")]
     public string UserId { get; init; } = string.Empty;
-    [Required]
+    [JsonProperty("language")]
     public string Lang { get; init; } = string.Empty;
-    [Required]
+    [JsonProperty("description")]
     public string Desc { get; init; } = string.Empty;
-    [Required]
+    [JsonProperty("sessionName")]
     public string Session { get; init; } = string.Empty;
-    [Required]
+    [JsonProperty("sessionId")]
     public string SessionId { get; init; } = string.Empty;
-    [Required]
+    [JsonProperty("sessionUrl")]
     public string SessionUrl { get; init; } = string.Empty;
-    [Required]
+    [JsonProperty("sessionWebUrl")]
     public string SessionWebUrl { get; init; } = string.Empty;
 
-    [Key]
-    public ulong Id { get; set; }
+    [JsonProperty("id")]
+    public string Id { get; set; } = string.Empty;
 
-    [ConcurrencyCheck]
-    public ulong Lock { get; set; }
-
-    public string? Mentor { get; set; } = null;
-    public ulong? MentorDiscordId { get; set; } = null;
+    [JsonProperty("mentorName")]
+    public string? MentorName { get; set; } = null;
+    [JsonProperty("mentorDiscordId")]
+    public string? MentorDiscordId { get; set; } = null;
+    [JsonProperty("mentorNeosId")]
     public string? MentorNeosId { get; set; } = null;
 
+    [JsonProperty("created")]
     public DateTime Created { get; set; } = DateTime.UtcNow;
+    [JsonProperty("claimed")]
     public DateTime? Claimed { get; set; } = null;
+    [JsonProperty("complete")]
     public DateTime? Complete { get; set; } = null;
+    [JsonProperty("canceled")]
     public DateTime? Canceled { get; set; } = null;
 
     private static string StatusToTitle(TicketStatus status)
@@ -124,7 +126,7 @@ namespace MentorBot.Models
       yield return Field("Session ID", SessionId);
       yield return Field("Session Url", SessionUrl);
       yield return Field("Session Web Url", SessionWebUrl);
-      yield return Field("Mentor Name", Mentor, true);
+      yield return Field("Mentor Name", MentorName, true);
       yield return Field("Mentor Discord Link", MentorDiscordId, true);
       yield return Field("Mentor Neos Id", MentorNeosId, true);
       yield return Field("Created", Created);

@@ -12,10 +12,25 @@ using System.Threading.Tasks;
 
 namespace MentorBot.ExternDiscord
 {
+  public enum Reaction
+  {
+    Claim,
+    Complete
+  }
+
   public interface IDiscordReactionHandler
   {
-    Task ReactionAdded(ulong msg, IUser user, string reaction, CancellationToken cancellationToken = default);
-    Task ReactionRemoved(ulong msg, IUser user, string reaction, CancellationToken cancellationToken = default);
+    Task Claim(ulong msg, IUser user, CancellationToken cancellationToken = default);
+    Task Unclaim(ulong msg, IUser user, CancellationToken cancellationToken = default);
+    Task Complete(ulong msg, IUser user, CancellationToken cancellationToken = default);
+  }
+
+  public class DiscordOptions
+  {
+    public string Token { get; set; } = string.Empty;
+    public ulong Channel { get; set; }
+    public string ClaimEmote { get; set; } = string.Empty;
+    public string CompleteEmote { get; set; } = string.Empty;
   }
 
   public class DiscordContext : IHostedService, IHealthCheck, IDisposable
@@ -24,10 +39,11 @@ namespace MentorBot.ExternDiscord
     private readonly DiscordOptions _options;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<DiscordContext> _logger;
+    private readonly IDisposable _watchDispose;
     private ITextChannel? _channel;
     private bool isReady;
 
-    public DiscordContext(IOptions<DiscordOptions> options, IServiceProvider serviceProvider, ILogger<DiscordContext> logger)
+    public DiscordContext(ITicketNotifier notifier, IOptions<DiscordOptions> options, IServiceProvider serviceProvider, ILogger<DiscordContext> logger)
     {
       _client = new DiscordSocketClient(new DiscordSocketConfig
       {
@@ -38,16 +54,29 @@ namespace MentorBot.ExternDiscord
       _options = options.Value;
       _serviceProvider = serviceProvider;
       _logger = logger;
-      _client.ReactionAdded += ReactionHandler_Wrapped(h => h.ReactionAdded);
-      _client.ReactionRemoved += ReactionHandler_Wrapped(h => h.ReactionRemoved);
+      _client.ReactionAdded += ReactionHandler_Wrapped(ReactionAdded);
+      _client.ReactionRemoved += ReactionHandler_Wrapped(ReactionRemoved);
       _client.Ready += () => Task.FromResult(isReady = true);
+      _watchDispose = notifier.WatchTicketsUpdated(HeadlessTicketUpdate);
+    }
+
+    private async void HeadlessTicketUpdate(Ticket ticket)
+    {
+      try
+      {
+        await UpdateTicket(ticket);
+      }
+      catch(Exception e)
+      {
+        _logger.LogWarning(e, "Error while dealing with detached ticket handler.");
+      }
     }
 
     public async Task<IUserMessage?> SendTicketMessage(Ticket ticket, CancellationToken cancellationToken = default)
     {
       if (_channel == null)
       {
-        return null;
+        throw new InvalidOperationException("channel not bound to discord context.");
       }
       var msg = await _channel.SendMessageAsync(embed: ticket.ToEmbed(), options: new RequestOptions
       {
@@ -59,6 +88,18 @@ namespace MentorBot.ExternDiscord
         new Emoji(_options.CompleteEmote),
       });
       return msg;
+    }
+
+    public async Task<IUserMessage?> UpdateTicket(Ticket ticket, CancellationToken cancellationToken = default)
+    {
+      if (_channel == null)
+      {
+        throw new InvalidOperationException("channel not bound to discord context.");
+      }
+      return ulong.TryParse(ticket.Id, out var id) ? await _channel.ModifyMessageAsync(id, props => props.Embed = ticket.ToEmbed(), new RequestOptions
+      {
+        CancelToken = cancellationToken
+      }) : null;
     }
 
     private Task Client_Log(LogMessage arg)
@@ -103,21 +144,36 @@ namespace MentorBot.ExternDiscord
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
       return Task.FromResult(_client.ConnectionState == ConnectionState.Connected && isReady ?
-        HealthCheckResult.Healthy("Discord service is ready and bound."):
+        HealthCheckResult.Healthy("Discord service is ready and bound.") :
         HealthCheckResult.Unhealthy("Discord bot api has disconnected."));
     }
 
-    private Func<Cacheable<IUserMessage, ulong>, ISocketMessageChannel, SocketReaction, Task>
-      ReactionHandler_Wrapped(Func<IDiscordReactionHandler, Func<ulong, IUser, string, CancellationToken, Task>> bodyGetter) =>
-      (Cacheable<IUserMessage, ulong> msg, ISocketMessageChannel channel, SocketReaction reaction) =>
-    {
-      _ = Task.Run(() => ReactionHandler(msg, channel, reaction, bodyGetter));
-      return Task.CompletedTask;
-    };
 
-    private async Task ReactionHandler(Cacheable<IUserMessage, ulong> msg, ISocketMessageChannel channel, SocketReaction reaction, Func<IDiscordReactionHandler, Func<ulong, IUser, string, CancellationToken, Task>> bodyGetter)
+    private Func<Cacheable<IUserMessage, ulong>, ISocketMessageChannel, SocketReaction, Task>
+      ReactionHandler_Wrapped(Func<IDiscordReactionHandler, ulong, IUser, Reaction, CancellationToken, Task> bodyGetter) =>
+      (Cacheable<IUserMessage, ulong> msg, ISocketMessageChannel channel, SocketReaction reaction) =>
+      {
+        _ = Task.Run(() => ReactionHandler(msg, channel, reaction, bodyGetter));
+        return Task.CompletedTask;
+      };
+
+    private async Task ReactionHandler(Cacheable<IUserMessage, ulong> msg, ISocketMessageChannel channel, SocketReaction reaction, Func<IDiscordReactionHandler, ulong, IUser, Reaction, CancellationToken, Task> bodyGetter)
     {
       if (channel.Id != _options.Channel)
+      {
+        return;
+      }
+
+      Reaction rea;
+      if (reaction.Emote.Name == _options.ClaimEmote)
+      {
+        rea = Reaction.Claim;
+      }
+      else if (reaction.Emote.Name == _options.CompleteEmote)
+      {
+        rea = Reaction.Complete;
+      }
+      else
       {
         return;
       }
@@ -128,7 +184,7 @@ namespace MentorBot.ExternDiscord
         await using var scope = _serviceProvider.CreateAsyncScope();
         foreach (var handler in scope.ServiceProvider.GetServices<IDiscordReactionHandler>())
         {
-          await bodyGetter(handler)(msg.Id, user, reaction.Emote.Name, new CancellationToken());
+          await bodyGetter(handler, msg.Id, user, rea, new CancellationToken());
         }
       }
       catch (Exception e)
@@ -137,9 +193,31 @@ namespace MentorBot.ExternDiscord
       }
     }
 
+    private async Task ReactionAdded(IDiscordReactionHandler handler, ulong ticketId, IUser user, Reaction reaction, CancellationToken cancellationToken)
+    {
+      switch (reaction)
+      {
+        case Reaction.Claim:
+          await handler.Claim(ticketId, user, cancellationToken);
+          break;
+        case Reaction.Complete:
+          await handler.Complete(ticketId, user, cancellationToken);
+          break;
+      }
+    }
+
+    private async Task ReactionRemoved(IDiscordReactionHandler handler, ulong ticketId, IUser user, Reaction reaction, CancellationToken cancellationToken)
+    {
+      if (reaction == Reaction.Claim)
+      {
+        await handler.Unclaim(ticketId, user, cancellationToken);
+      }
+    }
+
     public void Dispose()
     {
       _client.Dispose();
+      _watchDispose.Dispose();
     }
   }
 }
