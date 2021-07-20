@@ -159,7 +159,7 @@ namespace MentorBot.ExternDiscord
 
     private async Task ReactionHandler(Cacheable<IUserMessage, ulong> msg, ISocketMessageChannel channel, SocketReaction reaction, Func<IDiscordReactionHandler, ulong, IUser, Reaction, CancellationToken, Task> bodyGetter)
     {
-      if (channel.Id != _options.Channel)
+      if (channel.Id != _options.Channel || _client.Rest.CurrentUser.Id == reaction.UserId)
       {
         return;
       }
