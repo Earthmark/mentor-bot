@@ -186,7 +186,7 @@ namespace MentorBot.Extern
       try
       {
         var user = reaction.User.GetValueOrDefault() ?? await _client.Rest.GetUserAsync(reaction.UserId);
-        await using var scope = _serviceProvider.CreateAsyncScope();
+        using var scope = _serviceProvider.CreateScope();
         foreach (var handler in scope.ServiceProvider.GetServices<IDiscordReactionHandler>())
         {
           await bodyGetter(handler, msg.Id, user, rea, new CancellationToken());

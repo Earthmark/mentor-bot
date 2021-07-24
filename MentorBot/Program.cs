@@ -13,7 +13,7 @@ namespace MentorBot
     public static async Task Main(string[] args)
     {
       using var host = CreateHostBuilder(args).Build();
-      await using(var scope = host.Services.CreateAsyncScope())
+      using(var scope = host.Services.CreateScope())
       {
         var client = scope.ServiceProvider.GetRequiredService<CosmosClient>();
         var opts = scope.ServiceProvider.GetRequiredService<IOptionsSnapshot<CosmosOptions>>();
