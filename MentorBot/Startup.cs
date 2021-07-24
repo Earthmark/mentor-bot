@@ -47,7 +47,9 @@ namespace MentorBot
       services.AddSingleton<ITicketNotifier, TicketNotifier>();
 
       services.AddSwaggerGen(c => c.SwaggerDoc("v1", new OpenApiInfo { Title = "Mentor Signal", Version = "v1" }));
-      services.AddHealthChecks().AddCheck<CosmosHealthCheck>("database");
+      services.AddHealthChecks()
+        .AddCheck<CosmosHealthCheck>("database")
+        .AddCheck<DiscordHealthCheck>("discord");
       services.AddControllers();
     }
 

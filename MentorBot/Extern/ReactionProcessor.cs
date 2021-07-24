@@ -36,15 +36,18 @@ namespace MentorBot.Extern
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-      var addedHandler = ReactionHandler_Wrapped(ReactionAdded);
-      var removedHandler = ReactionHandler_Wrapped(ReactionRemoved);
-      _ctx.Client.ReactionAdded += addedHandler;
-      _ctx.Client.ReactionRemoved += removedHandler;
-      _stop = () =>
+      if (_options.ProcessReactions)
       {
-        _ctx.Client.ReactionAdded -= addedHandler;
-        _ctx.Client.ReactionRemoved -= removedHandler;
-      };
+        var addedHandler = ReactionHandler_Wrapped(ReactionAdded);
+        var removedHandler = ReactionHandler_Wrapped(ReactionRemoved);
+        _ctx.Client.ReactionAdded += addedHandler;
+        _ctx.Client.ReactionRemoved += removedHandler;
+        _stop = () =>
+        {
+          _ctx.Client.ReactionAdded -= addedHandler;
+          _ctx.Client.ReactionRemoved -= removedHandler;
+        };
+      }
       return Task.CompletedTask;
     }
 

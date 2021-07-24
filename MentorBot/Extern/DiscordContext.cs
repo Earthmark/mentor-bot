@@ -1,7 +1,6 @@
 ﻿using Discord;
 using Discord.WebSocket;
 using MentorBot.Models;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -14,6 +13,8 @@ namespace MentorBot.Extern
   public interface IDiscordContext
   {
     DiscordSocketClient Client { get; }
+    ITextChannel? Channel { get; }
+    bool Ready { get; }
     ValueTask<IUserMessage?> SendTicketMessage(Ticket ticket, CancellationToken cancellationToken = default);
   }
 
@@ -23,28 +24,27 @@ namespace MentorBot.Extern
     Complete
   }
 
-  public class DiscordContext : IDiscordContext, IHostedService, IHealthCheck, IDisposable
+  public class DiscordContext : IDiscordContext, IHostedService, IDisposable
   {
-    private readonly DiscordSocketClient _client;
     private readonly DiscordOptions _options;
     private readonly ILogger<DiscordContext> _logger;
     private readonly IDisposable _watchDispose;
-    private ITextChannel? _channel;
-    private bool isReady;
 
-    public DiscordSocketClient Client => _client;
+    public DiscordSocketClient Client { get; }
+    public ITextChannel? Channel { get; private set; }
+    public bool Ready { get; private set; }
 
     public DiscordContext(ITicketNotifier notifier, IOptions<DiscordOptions> options, ILogger<DiscordContext> logger)
     {
-      _client = new DiscordSocketClient(new DiscordSocketConfig
+      Client = new DiscordSocketClient(new DiscordSocketConfig
       {
         MessageCacheSize = 50,
         LogLevel = LogSeverity.Debug
       });
-      _client.Log += Client_Log;
+      Client.Log += Client_Log;
       _options = options.Value;
       _logger = logger;
-      _client.Ready += () => Task.FromResult(isReady = true);
+      Client.Ready += () => Task.FromResult(Ready = true);
       _watchDispose = notifier.WatchTicketsUpdated(HeadlessTicketUpdate);
     }
 
@@ -65,11 +65,11 @@ namespace MentorBot.Extern
 
     public async ValueTask<IUserMessage?> SendTicketMessage(Ticket ticket, CancellationToken cancellationToken = default)
     {
-      if (_channel == null)
+      if (Channel == null)
       {
         throw new InvalidOperationException("channel not bound to discord context.");
       }
-      var msg = await _channel.SendMessageAsync(embed: ticket.ToEmbed(), options: new RequestOptions
+      var msg = await Channel.SendMessageAsync(embed: ticket.ToEmbed(), options: new RequestOptions
       {
         CancelToken = cancellationToken
       });
@@ -83,11 +83,11 @@ namespace MentorBot.Extern
 
     public async ValueTask<IUserMessage?> UpdateTicket(Ticket ticket, CancellationToken cancellationToken = default)
     {
-      if (_channel == null)
+      if (Channel == null)
       {
         throw new InvalidOperationException("channel not bound to discord context.");
       }
-      return ulong.TryParse(ticket.Id, out var id) ? await _channel.ModifyMessageAsync(id, props => props.Embed = ticket.ToEmbed(), new RequestOptions
+      return ulong.TryParse(ticket.Id, out var id) ? await Channel.ModifyMessageAsync(id, props => props.Embed = ticket.ToEmbed(), new RequestOptions
       {
         CancelToken = cancellationToken
       }) : null;
@@ -121,27 +121,20 @@ namespace MentorBot.Extern
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-      await _client.LoginAsync(TokenType.Bot, _options.Token);
-      await _client.StartAsync();
-      _channel = await _client.Rest.GetChannelAsync(_options.Channel) as ITextChannel;
+      await Client.LoginAsync(TokenType.Bot, _options.Token);
+      await Client.StartAsync();
+      Channel = await Client.Rest.GetChannelAsync(_options.Channel) as ITextChannel;
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-      await _client.StopAsync();
-      await _client.LogoutAsync();
-    }
-
-    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
-    {
-      return Task.FromResult(_client.ConnectionState == ConnectionState.Connected && isReady ?
-        HealthCheckResult.Healthy("Discord service is ready and bound.") :
-        HealthCheckResult.Unhealthy("Discord bot api has disconnected."));
+      await Client.StopAsync();
+      await Client.LogoutAsync();
     }
 
     public void Dispose()
     {
-      _client.Dispose();
+      Client.Dispose();
       _watchDispose.Dispose();
     }
   }

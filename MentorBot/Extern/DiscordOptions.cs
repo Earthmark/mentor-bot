@@ -2,6 +2,7 @@
 {
   public class DiscordOptions
   {
+    public bool ProcessReactions { get; set; } = true;
     public bool UpdateTickets { get; set; } = true;
     public string Token { get; set; } = string.Empty;
     public ulong Channel { get; set; }

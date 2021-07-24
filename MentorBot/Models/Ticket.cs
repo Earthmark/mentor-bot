@@ -5,6 +5,7 @@ using Newtonsoft.Json.Converters;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Serialization;
 
 namespace MentorBot.Models
 {
@@ -67,8 +68,15 @@ namespace MentorBot.Models
     [JsonProperty("id")]
     public string Id { get; init; } = string.Empty;
 
+    [JsonProperty("ticket")]
+    public string LegacyTicket => Id;
+
     [JsonProperty("mentorName")]
     public string? MentorName { get; init; } = null;
+
+    [JsonProperty("mentor")]
+    public string LegacyMentor => MentorName;
+
     [JsonProperty("mentorDiscordId")]
     public string? MentorDiscordId { get; init; } = null;
     [JsonProperty("mentorNeosId")]
@@ -136,7 +144,9 @@ namespace MentorBot.Models
         yield return Field("Session Web Url", SessionWebUrl);
         yield return Field("Mentor Name", MentorName, true);
         yield return Field("Mentor Discord Link", MentorDiscordId, true);
-        yield return Field("Mentor Neos Id", MentorNeosId, true);
+        yield return Field("Mentor Neos Id", string.IsNullOrWhiteSpace(MentorNeosId) ?
+          "<UNREGISTERED>" :
+          MentorNeosId, true);
         yield return Field("Created", Created.ToString("u"));
         yield return Field("Claimed", Claimed?.ToString("u"));
         yield return Field("Completed", Complete?.ToString("u"));
@@ -155,9 +165,13 @@ namespace MentorBot.Models
 
   public enum TicketStatus
   {
+    [EnumMember(Value = "requested")]
     Requested,
+    [EnumMember(Value = "responding")]
     Responding,
+    [EnumMember(Value = "completed")]
     Completed,
+    [EnumMember(Value = "canceled")]
     Canceled
   }
 

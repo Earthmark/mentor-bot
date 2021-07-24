@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.WebUtilities;
 using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace MentorBot
 {
@@ -9,9 +8,7 @@ namespace MentorBot
   {
     public static string Encode(object o)
     {
-      var objTicket = JObject.FromObject(o);
-      var fields = Enumerable.Select<KeyValuePair<string, JToken>, KeyValuePair<string, string>>(objTicket,
-        kvp => new KeyValuePair<string, string>(kvp.Key, kvp.Value.ToString()));
+      var fields = JObject.FromObject(o).ToObject<Dictionary<string, string>>();
       var query = QueryHelpers.AddQueryString("", fields!).Remove(0, 1);
       return query;
     }

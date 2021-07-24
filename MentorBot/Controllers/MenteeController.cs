@@ -46,14 +46,17 @@ namespace MentorBot.Controllers
       return ticket;
     }
 
-    [HttpGet("ws/mentee"), Throttle(6, Name = "Ticket Create")]
-    public async ValueTask<ActionResult<Ticket>> CreateTicket([FromQuery] TicketCreate createArgs)
+    [HttpGet("ws/mentee"), Throttle(6, Name = "WS Ticket Create")]
+    public async ValueTask<ActionResult<Ticket>> CreateTicket([FromQuery] TicketCreate createArgs, [FromQuery(Name = "ticket")] string? ticketId)
     {
       if (!HttpContext.WebSockets.IsWebSocketRequest)
       {
         return BadRequest();
       }
-      var ticket = await _store.CreateTicket(createArgs, HttpContext.RequestAborted);
+
+      var ticket = string.IsNullOrWhiteSpace(ticketId) ?
+        await _store.CreateTicket(createArgs, HttpContext.RequestAborted) :
+        await _store.GetTicketAsync(ticketId, HttpContext.RequestAborted);
       if (ticket == null)
       {
         return BadRequest();
@@ -66,7 +69,7 @@ namespace MentorBot.Controllers
       return new EmptyResult();
     }
 
-    [HttpGet("ws/mentee/{ticketId}"), Throttle(3, Name = "Ticket Get")]
+    [HttpGet("ws/mentee/{ticketId}"), Throttle(3, Name = "WS Ticket Get")]
     public async ValueTask<ActionResult> Retrieve(string ticketId)
     {
       if (!HttpContext.WebSockets.IsWebSocketRequest)
@@ -169,7 +172,11 @@ namespace MentorBot.Controllers
 
       // This is due to a bug with the Neos websocket handler, it won't recieve messages that arrive just before the socket is closed.
       // This uses the outer token as we only bail out of the outer handler closes as well.
-      await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+      try
+      {
+        await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+      }
+      catch (OperationCanceledException) { }
     }
 
     public record MenteeRequest

@@ -21,8 +21,14 @@ namespace MentorBot.Models
 
     public async ValueTask<Mentor?> GetMentor(string discordId, CancellationToken cancellationToken = default)
     {
-      var result = await _container.ReadItemAsync<Mentor>(discordId, new PartitionKey(discordId), cancellationToken: cancellationToken);
-      return result.StatusCode != System.Net.HttpStatusCode.NotFound ? result : null;
+      try
+      {
+        return await _container.ReadItemAsync<Mentor>(discordId, new PartitionKey(discordId), cancellationToken: cancellationToken);
+      }
+      catch (CosmosException e) when (e.StatusCode == System.Net.HttpStatusCode.NotFound)
+      {
+        return null;
+      }
     }
   }
 }

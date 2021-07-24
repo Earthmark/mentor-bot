@@ -12,7 +12,7 @@ namespace MentorBot.Models
     ValueTask<Ticket?> CreateTicket(TicketCreate createArgs, CancellationToken cancellationToken = default);
     ValueTask<Ticket?> TryCompleteTicket(string ticketId, string mentorDiscordId, CancellationToken cancellationToken = default);
     ValueTask<Ticket?> TryCancelTicket(string ticketId, CancellationToken cancellationToken = default);
-    ValueTask<Ticket?> TryClaimTicket(string ticketId, string mentorDiscordId, CancellationToken cancellationToken = default);
+    ValueTask<Ticket?> TryClaimTicket(string ticketId, string mentorDiscordId, string mentorFallbackName, CancellationToken cancellationToken = default);
     ValueTask<Ticket?> TryUnclaimTicket(string ticketId, string mentorDiscordId, CancellationToken cancellationToken = default);
   }
 
@@ -99,13 +99,13 @@ namespace MentorBot.Models
       return await _tick.UpdateTicket(ticket, cancellationToken);
     }
 
-    public async ValueTask<Ticket?> TryClaimTicket(string ticketId, string mentorDiscordId, CancellationToken cancellationToken = default)
+    public async ValueTask<Ticket?> TryClaimTicket(string ticketId, string mentorDiscordId, string mentorFallbackName, CancellationToken cancellationToken = default)
     {
       var mentorTask = _ment.GetMentor(mentorDiscordId, cancellationToken);
       var ticketTask = GetTicketAsync(ticketId, cancellationToken);
       var mentor = await mentorTask;
       var ticket = await ticketTask;
-      if (mentor == null || ticket == null || ticket.Status != TicketStatus.Requested)
+      if (ticket == null || ticket.Status != TicketStatus.Requested)
       {
         return null;
       }
@@ -113,9 +113,9 @@ namespace MentorBot.Models
       {
         Status = TicketStatus.Responding,
         Claimed = DateTime.UtcNow,
-        MentorName = mentor.Name,
-        MentorDiscordId = mentor.DiscordId,
-        MentorNeosId = mentor.NeosId,
+        MentorName = mentor?.Name ?? mentorFallbackName,
+        MentorDiscordId = mentor?.DiscordId ?? mentorDiscordId,
+        MentorNeosId = mentor?.NeosId ?? string.Empty,
       };
       return await _tick.UpdateTicket(ticket, cancellationToken);
     }
@@ -139,7 +139,7 @@ namespace MentorBot.Models
     }
 
     async ValueTask IDiscordReactionHandler.Claim(ulong msg, IUser user, CancellationToken cancellationToken)
-      => await TryClaimTicket(msg.ToString(), user.Id.ToString(), cancellationToken);
+      => await TryClaimTicket(msg.ToString(), user.Id.ToString(), user.Username, cancellationToken);
 
     async ValueTask IDiscordReactionHandler.Complete(ulong msg, IUser user, CancellationToken cancellationToken)
       => await TryCompleteTicket(msg.ToString(), user.Id.ToString(), cancellationToken);
