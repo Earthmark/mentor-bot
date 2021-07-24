@@ -10,8 +10,13 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace MentorBot.ExternDiscord
+namespace MentorBot.Extern
 {
+  public interface IDiscordContext
+  {
+    ValueTask<IUserMessage?> SendTicketMessage(Ticket ticket, CancellationToken cancellationToken = default);
+  }
+
   public enum Reaction
   {
     Claim,
@@ -20,9 +25,9 @@ namespace MentorBot.ExternDiscord
 
   public interface IDiscordReactionHandler
   {
-    Task Claim(ulong msg, IUser user, CancellationToken cancellationToken = default);
-    Task Unclaim(ulong msg, IUser user, CancellationToken cancellationToken = default);
-    Task Complete(ulong msg, IUser user, CancellationToken cancellationToken = default);
+    ValueTask Claim(ulong msg, IUser user, CancellationToken cancellationToken = default);
+    ValueTask Unclaim(ulong msg, IUser user, CancellationToken cancellationToken = default);
+    ValueTask Complete(ulong msg, IUser user, CancellationToken cancellationToken = default);
   }
 
   public class DiscordOptions
@@ -33,7 +38,7 @@ namespace MentorBot.ExternDiscord
     public string CompleteEmote { get; set; } = string.Empty;
   }
 
-  public class DiscordContext : IHostedService, IHealthCheck, IDisposable
+  public class DiscordContext : IDiscordContext, IHostedService, IHealthCheck, IDisposable
   {
     private readonly DiscordSocketClient _client;
     private readonly DiscordOptions _options;
@@ -72,7 +77,7 @@ namespace MentorBot.ExternDiscord
       }
     }
 
-    public async Task<IUserMessage?> SendTicketMessage(Ticket ticket, CancellationToken cancellationToken = default)
+    public async ValueTask<IUserMessage?> SendTicketMessage(Ticket ticket, CancellationToken cancellationToken = default)
     {
       if (_channel == null)
       {
@@ -90,7 +95,7 @@ namespace MentorBot.ExternDiscord
       return msg;
     }
 
-    public async Task<IUserMessage?> UpdateTicket(Ticket ticket, CancellationToken cancellationToken = default)
+    public async ValueTask<IUserMessage?> UpdateTicket(Ticket ticket, CancellationToken cancellationToken = default)
     {
       if (_channel == null)
       {
@@ -150,14 +155,14 @@ namespace MentorBot.ExternDiscord
 
 
     private Func<Cacheable<IUserMessage, ulong>, ISocketMessageChannel, SocketReaction, Task>
-      ReactionHandler_Wrapped(Func<IDiscordReactionHandler, ulong, IUser, Reaction, CancellationToken, Task> bodyGetter) =>
+      ReactionHandler_Wrapped(Func<IDiscordReactionHandler, ulong, IUser, Reaction, CancellationToken, ValueTask> bodyGetter) =>
       (Cacheable<IUserMessage, ulong> msg, ISocketMessageChannel channel, SocketReaction reaction) =>
       {
         _ = Task.Run(() => ReactionHandler(msg, channel, reaction, bodyGetter));
         return Task.CompletedTask;
       };
 
-    private async Task ReactionHandler(Cacheable<IUserMessage, ulong> msg, ISocketMessageChannel channel, SocketReaction reaction, Func<IDiscordReactionHandler, ulong, IUser, Reaction, CancellationToken, Task> bodyGetter)
+    private async Task ReactionHandler(Cacheable<IUserMessage, ulong> msg, ISocketMessageChannel channel, SocketReaction reaction, Func<IDiscordReactionHandler, ulong, IUser, Reaction, CancellationToken, ValueTask> bodyGetter)
     {
       if (channel.Id != _options.Channel || _client.Rest.CurrentUser.Id == reaction.UserId)
       {
@@ -193,7 +198,7 @@ namespace MentorBot.ExternDiscord
       }
     }
 
-    private async Task ReactionAdded(IDiscordReactionHandler handler, ulong ticketId, IUser user, Reaction reaction, CancellationToken cancellationToken)
+    private async ValueTask ReactionAdded(IDiscordReactionHandler handler, ulong ticketId, IUser user, Reaction reaction, CancellationToken cancellationToken)
     {
       switch (reaction)
       {
@@ -206,7 +211,7 @@ namespace MentorBot.ExternDiscord
       }
     }
 
-    private async Task ReactionRemoved(IDiscordReactionHandler handler, ulong ticketId, IUser user, Reaction reaction, CancellationToken cancellationToken)
+    private async ValueTask ReactionRemoved(IDiscordReactionHandler handler, ulong ticketId, IUser user, Reaction reaction, CancellationToken cancellationToken)
     {
       if (reaction == Reaction.Claim)
       {

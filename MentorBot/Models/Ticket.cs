@@ -8,31 +8,27 @@ using System.Linq;
 
 namespace MentorBot.Models
 {
-  public class TicketCreate
+  public record TicketCreate
   {
     [FromQuery]
-    public string Username { get; init; } = string.Empty;
+    public string? UserId { get; init; }
     [FromQuery]
-    public string UserId { get; init; } = string.Empty;
+    public string? Lang { get; init; }
     [FromQuery]
-    public string Lang { get; init; } = string.Empty;
+    public string? Desc { get; init; }
     [FromQuery]
-    public string Desc { get; init; } = string.Empty;
+    public string? Session { get; init; }
     [FromQuery]
-    public string Session { get; init; } = string.Empty;
+    public string? SessionId { get; init; }
     [FromQuery]
-    public string SessionId { get; init; } = string.Empty;
+    public string? SessionUrl { get; init; }
     [FromQuery]
-    public string SessionUrl { get; init; } = string.Empty;
-    [FromQuery]
-    public string SessionWebUrl { get; init; } = string.Empty;
+    public string? SessionWebUrl { get; init; }
 
-    public Ticket ToTicket()
+    public Ticket Populate(Ticket ticket)
     {
-      return new Ticket
+      return ticket with
       {
-        Username = Username,
-        UserId = UserId,
         Lang = Lang,
         Desc = Desc,
         Session = Session,
@@ -44,46 +40,46 @@ namespace MentorBot.Models
   }
 
   [JsonObject]
-  public class Ticket
+  public record Ticket
   {
     [JsonProperty("status"), JsonConverter(typeof(StringEnumConverter))]
     public TicketStatus Status { get; set; } = TicketStatus.Requested;
 
     [JsonProperty("menteeName")]
-    public string Username { get; init; } = string.Empty;
+    public string? Username { get; init; }
     [JsonProperty("menteeId")]
     public string UserId { get; init; } = string.Empty;
     [JsonProperty("language")]
-    public string Lang { get; init; } = string.Empty;
+    public string? Lang { get; init; }
     [JsonProperty("description")]
-    public string Desc { get; init; } = string.Empty;
+    public string? Desc { get; init; }
     [JsonProperty("sessionName")]
-    public string Session { get; init; } = string.Empty;
+    public string? Session { get; init; }
     [JsonProperty("sessionId")]
-    public string SessionId { get; init; } = string.Empty;
+    public string? SessionId { get; init; }
     [JsonProperty("sessionUrl")]
-    public string SessionUrl { get; init; } = string.Empty;
+    public string? SessionUrl { get; init; }
     [JsonProperty("sessionWebUrl")]
-    public string SessionWebUrl { get; init; } = string.Empty;
+    public string? SessionWebUrl { get; init; }
 
     [JsonProperty("id")]
-    public string Id { get; set; } = string.Empty;
+    public string Id { get; init; } = string.Empty;
 
     [JsonProperty("mentorName")]
-    public string? MentorName { get; set; } = null;
+    public string? MentorName { get; init; } = null;
     [JsonProperty("mentorDiscordId")]
-    public string? MentorDiscordId { get; set; } = null;
+    public string? MentorDiscordId { get; init; } = null;
     [JsonProperty("mentorNeosId")]
-    public string? MentorNeosId { get; set; } = null;
+    public string? MentorNeosId { get; init; } = null;
 
     [JsonProperty("created")]
-    public DateTime Created { get; set; } = DateTime.UtcNow;
+    public DateTime Created { get; init; } = DateTime.UtcNow;
     [JsonProperty("claimed")]
-    public DateTime? Claimed { get; set; } = null;
+    public DateTime? Claimed { get; init; } = null;
     [JsonProperty("complete")]
-    public DateTime? Complete { get; set; } = null;
+    public DateTime? Complete { get; init; } = null;
     [JsonProperty("canceled")]
-    public DateTime? Canceled { get; set; } = null;
+    public DateTime? Canceled { get; init; } = null;
 
     private static string StatusToTitle(TicketStatus status)
     {
@@ -102,37 +98,56 @@ namespace MentorBot.Models
       return new EmbedBuilder
       {
         Title = StatusToTitle(Status),
-        Fields = Fields().Where(f => f != null).ToList(),
+        Fields = EmbedFields().ToList(),
       }.Build();
     }
 
-    private IEnumerable<EmbedFieldBuilder?> Fields()
+    private IEnumerable<EmbedFieldBuilder?> EmbedFields()
     {
-      static EmbedFieldBuilder? Field(string name, object? value, bool inline = false)
+      foreach(var (name, value, inline) in Fields())
       {
-        return value != null ? new EmbedFieldBuilder
+        yield return new EmbedFieldBuilder
         {
           Name = name,
           Value = value,
           IsInline = inline,
-        } : null;
+        };
+      }
+    }
+
+    private static (string Name, string Value, bool Inline)? Field(string name, string? value, bool inline = false)
+    {
+      return !string.IsNullOrWhiteSpace(value) ? (name, value, inline) : null;
+    }
+
+    public IEnumerable<(string Name, string Value, bool Inline)> Fields()
+    {
+      IEnumerable<(string Name, string Value, bool Inline)?> NullableFields()
+      {
+        yield return Field("User", Username, true);
+        yield return Field("User Neos Id", UserId, true);
+        yield return Field("Language", Lang);
+        yield return Field("Description", Desc);
+        yield return Field("Session", Session);
+        yield return Field("Session ID", SessionId);
+        yield return Field("Session Url", SessionUrl);
+        yield return Field("Session Web Url", SessionWebUrl);
+        yield return Field("Mentor Name", MentorName, true);
+        yield return Field("Mentor Discord Link", MentorDiscordId, true);
+        yield return Field("Mentor Neos Id", MentorNeosId, true);
+        yield return Field("Created", Created.ToString("u"));
+        yield return Field("Claimed", Claimed?.ToString("u"));
+        yield return Field("Completed", Complete?.ToString("u"));
+        yield return Field("Canceled", Canceled?.ToString("u"));
       }
 
-      yield return Field("User", Username, true);
-      yield return Field("User Neos Id", UserId, true);
-      yield return Field("Language", Lang);
-      yield return Field("Description", Desc);
-      yield return Field("Session", Session);
-      yield return Field("Session ID", SessionId);
-      yield return Field("Session Url", SessionUrl);
-      yield return Field("Session Web Url", SessionWebUrl);
-      yield return Field("Mentor Name", MentorName, true);
-      yield return Field("Mentor Discord Link", MentorDiscordId, true);
-      yield return Field("Mentor Neos Id", MentorNeosId, true);
-      yield return Field("Created", Created);
-      yield return Field("Claimed", Claimed);
-      yield return Field("Completed", Complete);
-      yield return Field("Canceled", Canceled);
+      foreach(var item in NullableFields())
+      {
+        if (item.HasValue)
+        {
+          yield return item.Value;
+        }
+      }
     }
   }
 
@@ -144,14 +159,18 @@ namespace MentorBot.Models
     Canceled
   }
 
-  [AttributeUsage(AttributeTargets.Class | AttributeTargets.Parameter)]
-  public class TicketCreateBindAttribute : BindAttribute
+  public static class TicketStatusExtensions
   {
-    public TicketCreateBindAttribute() : base(
-      nameof(Ticket.Username), nameof(Ticket.UserId), nameof(Ticket.Lang),
-      nameof(Ticket.Desc), nameof(Ticket.Session), nameof(Ticket.SessionId),
-      nameof(Ticket.SessionUrl), nameof(Ticket.SessionWebUrl))
+    public static bool IsTerminal(this TicketStatus status)
     {
+      return status switch
+      {
+        TicketStatus.Requested => false,
+        TicketStatus.Responding => false,
+        TicketStatus.Completed => true,
+        TicketStatus.Canceled => true,
+        _ => false,
+      };
     }
   }
 }

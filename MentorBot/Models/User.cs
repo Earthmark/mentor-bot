@@ -2,14 +2,11 @@
 
 namespace MentorBot.Models
 {
-  public class Mentor
+  public record User
   {
     [JsonProperty("id")]
-    public string DiscordId { get; set; } = string.Empty;
-    [JsonProperty("neosId")]
-    public string NeosId { get; set; } = string.Empty;
+    public string Id { get; set; } = string.Empty;
     [JsonProperty("name")]
     public string Name { get; set; } = string.Empty;
   }
-
 }

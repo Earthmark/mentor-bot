@@ -5,7 +5,14 @@ using System.Threading.Tasks;
 
 namespace MentorBot.Models
 {
-  public class TicketContext
+  public interface ITicketContext
+  {
+    ValueTask<Ticket?> GetTicket(string id, CancellationToken cancellationToken = default);
+    ValueTask<Ticket?> CreateTicket(Ticket item, CancellationToken cancellationToken = default);
+    ValueTask<Ticket?> UpdateTicket(Ticket item, CancellationToken cancellationToken = default);
+  }
+
+  public class TicketContext : ITicketContext
   {
     private readonly Container _container;
     private readonly ITicketNotifier _notifier;
@@ -16,7 +23,7 @@ namespace MentorBot.Models
       _notifier = notifier;
     }
 
-    public async Task<Ticket?> GetTicket(string id, CancellationToken cancellationToken = default)
+    public async ValueTask<Ticket?> GetTicket(string id, CancellationToken cancellationToken = default)
     {
       try
       {
@@ -28,14 +35,14 @@ namespace MentorBot.Models
       }
     }
 
-    public async Task<Ticket?> CreateTicket(Ticket item, CancellationToken cancellationToken = default)
+    public async ValueTask<Ticket?> CreateTicket(Ticket item, CancellationToken cancellationToken = default)
     {
       var ticket = await _container.CreateItemAsync(item, new PartitionKey(item.Id), cancellationToken: cancellationToken);
       _notifier.NotifyNewTicket(ticket);
       return ticket;
     }
 
-    public async Task<Ticket?> UpdateTicket(Ticket item, CancellationToken cancellationToken = default)
+    public async ValueTask<Ticket?> UpdateTicket(Ticket item, CancellationToken cancellationToken = default)
     {
       var ticket = await _container.UpsertItemAsync(item, new PartitionKey(item.Id), cancellationToken: cancellationToken);
       _notifier.NotifyUpdatedTicket(ticket);

@@ -5,8 +5,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
-using MentorBot.ExternDiscord;
+using MentorBot.Extern;
 using Microsoft.Azure.Cosmos;
+using System;
 
 namespace MentorBot
 {
@@ -25,14 +26,21 @@ namespace MentorBot
       services.Configure<CosmosOptions>(Configuration.GetSection("Cosmos"));
 
       services.AddSingleton<DiscordContext>();
+      services.AddSingleton<IDiscordContext, DiscordContext>(o => o.GetRequiredService<DiscordContext>());
       services.AddHostedService(o => o.GetRequiredService<DiscordContext>());
-      services.AddTransient<IDiscordReactionHandler, TicketStore>();
+
+      services.AddHttpClient<INeosApi, NeosApi>(c =>
+      {
+        c.BaseAddress = new Uri("https://api.neos.com/");
+        c.DefaultRequestHeaders.Add("User-Agent", "MentorBotService");
+      });
 
       services.AddSingleton(options => new CosmosClient(Configuration.GetConnectionString("Cosmos")));
 
-      services.AddTransient<TicketContext>();
-      services.AddTransient<TicketStore>();
-      services.AddTransient<MentorContext>();
+      services.AddTransient<ITicketContext, TicketContext>();
+      services.AddTransient<ITicketStore, TicketStore>();
+      services.AddTransient<IDiscordReactionHandler, TicketStore>();
+      services.AddTransient<IMentorContext, MentorContext>();
 
       services.AddSingleton<ITicketNotifier, TicketNotifier>();
 

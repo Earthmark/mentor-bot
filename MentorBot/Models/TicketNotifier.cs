@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Concurrent;
+using System.Threading;
 
 namespace MentorBot.Models
 {
   public interface ITicketNotifier
   {
+    int GlobalWatchers { get; }
     IDisposable WatchTicketAdded(Action<Ticket> handler);
     IDisposable WatchTicketsUpdated(Action<Ticket> handler);
     IDisposable WatchTicketUpdated(Ticket ticket, Action<Ticket> handler);
@@ -26,6 +28,10 @@ namespace MentorBot.Models
     }
 
     private readonly ConcurrentDictionary<string, TicketWatcher> _ticketMonitor = new();
+
+    private int _globalWatchers;
+
+    public int GlobalWatchers => _globalWatchers;
 
     private event Action<Ticket>? TicketAdded;
     private event Action<Ticket>? TicketUpdated;
@@ -62,7 +68,12 @@ namespace MentorBot.Models
     public IDisposable WatchTicketAdded(Action<Ticket> handler)
     {
       TicketAdded += handler;
-      return new DisposeableFunc(() => TicketAdded -= handler);
+      Interlocked.Increment(ref _globalWatchers);
+      return new DisposeableFunc(() =>
+      {
+        Interlocked.Decrement(ref _globalWatchers);
+        TicketAdded -= handler;
+      });
     }
 
     public IDisposable WatchTicketsUpdated(Action<Ticket> handler)

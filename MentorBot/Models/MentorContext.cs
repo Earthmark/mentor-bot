@@ -5,7 +5,12 @@ using System.Threading.Tasks;
 
 namespace MentorBot.Models
 {
-  public class MentorContext
+  public interface IMentorContext
+  {
+    ValueTask<Mentor?> GetMentor(string discordId, CancellationToken cancellationToken = default);
+  }
+
+  public class MentorContext : IMentorContext
   {
     private readonly Container _container;
 
@@ -14,7 +19,7 @@ namespace MentorBot.Models
       _container = dbClient.GetContainer(options.Value.Database, options.Value.MentorsContainer);
     }
 
-    public async Task<Mentor?> GetMentor(string discordId, CancellationToken cancellationToken = default)
+    public async ValueTask<Mentor?> GetMentor(string discordId, CancellationToken cancellationToken = default)
     {
       try
       {
