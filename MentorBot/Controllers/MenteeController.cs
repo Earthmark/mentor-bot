@@ -1,11 +1,7 @@
 ﻿using MentorBot.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json.Linq;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
@@ -102,19 +98,22 @@ namespace MentorBot.Controllers
 
       byte[] msg = Encoding.UTF8.GetBytes("Ping");
 
-      using var _ = _notifier.WatchTicketAdded(ticket =>
+      using (_notifier.WatchTicketAdded(ticket =>
+        ws.SendAsync(msg, WebSocketMessageType.Text, true, HttpContext.RequestAborted)))
       {
-        ws.SendAsync(msg, WebSocketMessageType.Text, true, HttpContext.RequestAborted);
-      });
+        try
+        {
+          await foreach (var payload in ws.ReadMessages(HttpContext.RequestAborted))
+          {
+          }
+        }
+        catch (OperationCanceledException)
+        {
+          // Ticket was a terminal state.
+        }
 
-      var buffer = new byte[1024 * 4];
-      WebSocketReceiveResult result;
-      do
-      {
-        result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), HttpContext.RequestAborted);
-      } while (result.MessageType != WebSocketMessageType.Close);
-
-      return new EmptyResult();
+        return new EmptyResult();
+      }
     }
 
     private async ValueTask WatchTicket(Ticket ticket, WebSocket ws, CancellationToken cancellationToken = default)
@@ -126,12 +125,10 @@ namespace MentorBot.Controllers
       // This method is responsible for sending updates to listeners, and for watching when it should no longer send updates.
       async ValueTask SendTicket(Ticket tick)
       {
-        var objTicket = JObject.FromObject(tick);
-        var fields = Enumerable.Select<KeyValuePair<string, JToken>, KeyValuePair<string, string>>(objTicket,
-          kvp => new KeyValuePair<string, string>(kvp.Key, kvp.Value.ToString()));
-        var body = await new FormUrlEncodedContent(fields!).ReadAsByteArrayAsync(subToken);
+        var payload = UrlEncoder.Encode(tick);
+        var content = Encoding.UTF8.GetBytes(payload);
 
-        await ws.SendAsync(body, WebSocketMessageType.Text, true, subToken);
+        await ws.SendAsync(content, WebSocketMessageType.Text, true, subToken);
 
         if (ticket.Status.IsTerminal())
         {
@@ -139,36 +136,45 @@ namespace MentorBot.Controllers
         }
       }
 
-      using var _ = _notifier.WatchTicketUpdated(ticket, async t => {
+      using (_notifier.WatchTicketUpdated(ticket, async t =>
+       {
+         try
+         {
+           await SendTicket(t);
+         }
+         catch (Exception e)
+         {
+           _logger.LogWarning(e, "Exception while reporting ticket update to websocket.");
+         }
+       }))
+      {
+        await SendTicket(ticket);
+
         try
         {
-          await SendTicket(t);
+          await foreach (var payload in ws.ReadMessages(subToken))
+          {
+            var body = UrlEncoder.Decode<MenteeRequest>(payload);
+            if (body.Type == "cancel")
+            {
+              await _store.TryCancelTicket(ticket.Id, cancellationToken);
+            }
+          }
         }
-        catch(Exception e)
+        catch (OperationCanceledException)
         {
-          _logger.LogWarning(e, "Exception while reporting ticket update to websocket.");
+          // Ticket was a terminal state.
         }
-      });
-
-      await SendTicket(ticket);
-
-      try
-      {
-        var buffer = new byte[1024 * 4];
-        WebSocketReceiveResult result;
-        do
-        {
-          result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), subToken);
-        } while (result.MessageType != WebSocketMessageType.Close && !subToken.IsCancellationRequested);
-      }
-      catch (OperationCanceledException)
-      {
-        // Ticket was a terminal state.
       }
 
       // This is due to a bug with the Neos websocket handler, it won't recieve messages that arrive just before the socket is closed.
       // This uses the outer token as we only bail out of the outer handler closes as well.
       await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+    }
+
+    public record MenteeRequest
+    {
+      public string Type { get; init; } = string.Empty;
     }
   }
 }

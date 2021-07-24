@@ -11,6 +11,8 @@ namespace MentorBot.Models
   public record TicketCreate
   {
     [FromQuery]
+    public string? Name { get; init; }
+    [FromQuery]
     public string? UserId { get; init; }
     [FromQuery]
     public string? Lang { get; init; }

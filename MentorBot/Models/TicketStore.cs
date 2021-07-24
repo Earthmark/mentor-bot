@@ -11,6 +11,7 @@ namespace MentorBot.Models
     ValueTask<Ticket?> GetTicketAsync(string ticketId, CancellationToken cancellationToken = default);
     ValueTask<Ticket?> CreateTicket(TicketCreate createArgs, CancellationToken cancellationToken = default);
     ValueTask<Ticket?> TryCompleteTicket(string ticketId, string mentorDiscordId, CancellationToken cancellationToken = default);
+    ValueTask<Ticket?> TryCancelTicket(string ticketId, CancellationToken cancellationToken = default);
     ValueTask<Ticket?> TryClaimTicket(string ticketId, string mentorDiscordId, CancellationToken cancellationToken = default);
     ValueTask<Ticket?> TryUnclaimTicket(string ticketId, string mentorDiscordId, CancellationToken cancellationToken = default);
   }
@@ -37,21 +38,20 @@ namespace MentorBot.Models
 
     public async ValueTask<Ticket?> CreateTicket(TicketCreate createArgs, CancellationToken cancellationToken = default)
     {
-      if(string.IsNullOrWhiteSpace(createArgs.UserId))
+      User? user = null;
+      if(!string.IsNullOrWhiteSpace(createArgs.UserId))
       {
-        return null;
-      }
-
-      var user = await _neosApi.GetUser(createArgs.UserId, cancellationToken);
-      if (user == null)
-      {
-        return null;
+        user = await _neosApi.GetUser(createArgs.UserId, cancellationToken);
+        if (user == null)
+        {
+          return null;
+        }
       }
 
       Ticket ticket = createArgs.Populate(new Ticket
       {
-        UserId = user.Id,
-        Username = user.Name,
+        UserId = createArgs.UserId ?? string.Empty,
+        Username = user?.Name ?? createArgs.Name,
         Status = TicketStatus.Requested,
         Created = DateTime.UtcNow
       });
@@ -80,6 +80,21 @@ namespace MentorBot.Models
       {
         Status = TicketStatus.Completed,
         Complete = DateTime.UtcNow,
+      };
+      return await _tick.UpdateTicket(ticket, cancellationToken);
+    }
+
+    public async ValueTask<Ticket?> TryCancelTicket(string ticketId, CancellationToken cancellationToken = default)
+    {
+      var ticket = await GetTicketAsync(ticketId, cancellationToken);
+      if (ticket == null || ticket.Status.IsTerminal())
+      {
+        return null;
+      }
+      ticket = ticket with
+      {
+        Status = TicketStatus.Canceled,
+        Canceled = DateTime.UtcNow,
       };
       return await _tick.UpdateTicket(ticket, cancellationToken);
     }

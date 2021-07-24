@@ -29,6 +29,8 @@ namespace MentorBot
       services.AddSingleton<IDiscordContext, DiscordContext>(o => o.GetRequiredService<DiscordContext>());
       services.AddHostedService(o => o.GetRequiredService<DiscordContext>());
 
+      services.AddHostedService<ReactionProcessor>();
+
       services.AddHttpClient<INeosApi, NeosApi>(c =>
       {
         c.BaseAddress = new Uri("https://api.neos.com/");
