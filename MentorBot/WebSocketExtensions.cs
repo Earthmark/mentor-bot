@@ -5,6 +5,7 @@ using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace MentorBot
 {
@@ -27,6 +28,29 @@ namespace MentorBot
           yield return Encoding.UTF8.GetString(memStream.GetBuffer(), 0, (int)memStream.Length);
         }
       } while (result.MessageType != WebSocketMessageType.Close);
+    }
+
+    public static Func<string, Task> MessageSender(this WebSocket socket, CancellationToken cancellationToken = default)
+    {
+      Task t = Task.CompletedTask;
+
+      async Task NextSequenced(Func<Task> action)
+      {
+        var tcs = new TaskCompletionSource();
+        try
+        {
+          await Interlocked.Exchange(ref t, tcs.Task);
+
+          await action();
+        }
+        finally
+        {
+          tcs.SetResult();
+        }
+      }
+
+      return msg => NextSequenced(() =>
+        socket.SendAsync(Encoding.UTF8.GetBytes(msg), WebSocketMessageType.Text, true, cancellationToken));
     }
   }
 }

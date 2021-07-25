@@ -75,7 +75,7 @@ namespace MentorBot.Models
     public string? MentorName { get; init; } = null;
 
     [JsonProperty("mentor")]
-    public string LegacyMentor => MentorName;
+    public string? LegacyMentor => MentorName;
 
     [JsonProperty("mentorDiscordId")]
     public string? MentorDiscordId { get; init; } = null;
@@ -144,7 +144,8 @@ namespace MentorBot.Models
         yield return Field("Session Web Url", SessionWebUrl);
         yield return Field("Mentor Name", MentorName, true);
         yield return Field("Mentor Discord Link", MentorDiscordId, true);
-        yield return Field("Mentor Neos Id", string.IsNullOrWhiteSpace(MentorNeosId) ?
+        yield return Field("Mentor Neos Id",
+          !string.IsNullOrWhiteSpace(MentorName) && string.IsNullOrWhiteSpace(MentorNeosId) ?
           "<UNREGISTERED>" :
           MentorNeosId, true);
         yield return Field("Created", Created.ToString("u"));

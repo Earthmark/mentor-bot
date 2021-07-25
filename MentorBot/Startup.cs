@@ -68,7 +68,10 @@ namespace MentorBot
       }
 
       app.UseRouting();
-      app.UseWebSockets();
+      app.UseWebSockets(new WebSocketOptions
+      {
+        KeepAliveInterval = TimeSpan.FromSeconds(30)
+      });
       app.UseEndpoints(endpoints =>
       {
         endpoints.MapHealthChecks("/health");

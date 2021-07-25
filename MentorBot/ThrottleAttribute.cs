@@ -25,6 +25,7 @@ namespace MentorBot
     public override void OnActionExecuting(ActionExecutingContext c)
     {
       var key = string.Concat(Name, "-", c.HttpContext.Connection.RemoteIpAddress);
+      var key2 = string.Concat(Name, "-", c.HttpContext.Connection.RemoteIpAddress, "-2");
 
       if (!Cache.TryGetValue(key, out bool _))
       {
@@ -32,6 +33,13 @@ namespace MentorBot
             .SetAbsoluteExpiration(TimeSpan.FromSeconds(_seconds));
 
         Cache.Set(key, true, cacheEntryOptions);
+      }
+      else if(!Cache.TryGetValue(key2, out bool _))
+      {
+        var cacheEntryOptions = new MemoryCacheEntryOptions()
+            .SetAbsoluteExpiration(TimeSpan.FromSeconds(_seconds));
+
+        Cache.Set(key2, true, cacheEntryOptions);
       }
       else
       {
