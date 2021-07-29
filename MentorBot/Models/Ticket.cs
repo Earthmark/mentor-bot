@@ -153,14 +153,7 @@ namespace MentorBot.Models
         yield return Field("Completed", Complete?.ToString("u"));
         yield return Field("Canceled", Canceled?.ToString("u"));
       }
-
-      foreach(var item in NullableFields())
-      {
-        if (item.HasValue)
-        {
-          yield return item.Value;
-        }
-      }
+      return NullableFields().OnlyNotNull();
     }
   }
 
