@@ -9,9 +9,9 @@
     "locale/title.responding":"A Mentor Is On The Way",
     "locale/title.canceled":"Ticket Was Canceled",
     "locale/title.completed":"Ticket Was Marked As Completed",
-    "locale/description.ready":"A web request is needed to create a ticket, please accept the prompt that appears when you click Create Ticket.",
-    "locale/description.requested":"Mentors are volunteers, you may be contacted later if the ticket doesn't get answered at this time.{2}{3}{4}",
-    "locale/description.responding":"<color=#88ff88><noparse={1}>{0}</color> has claimed the ticket, soon they should either join the world, or contact you through the Contacts list.{2}{3}{4}",
+    "locale/description.ready":"A web request is needed to create a ticket - please accept the prompt that appears when you click Create Ticket.",
+    "locale/description.requested":"Mentors are volunteers - you may be contacted later if the ticket doesn't get answered at this time.{2}{3}{4}",
+    "locale/description.responding":"<color=#88ff88><noparse={1}>{0}</color> has claimed the ticket - soon they should either join the world, or contact you through the Contacts list.{2}{3}{4}",
     "locale/description.canceled":"If you still need help, please reach out to the Discord or in public worlds. You may be contacted later to see if you still need assistance.",
     "locale/description.completed":"Feel free to create another ticket if required, or ask for help on the Discord. The community is often happy to help!",
     "locale/description.2.disconnected":"<br><br><color=#ff8888>This panel has lost connection with the mentor service:</color> The panel will attempt to reconnect automatically. Check to ensure the connection is not blocked in <color=#8888ff>Dashboard -> Home -> Debug -> Web Hosts</color>. If all else fails, please cancel and re-create the ticket.<br>If this problem persists please let us known on the <color=#8888ff>Discord</color>.",
@@ -22,7 +22,7 @@
     "locale/reset.text":"Create Another",
     "locale/next.text.intro":"Get Help",
     "locale/next.text.create":"Create Ticket",
-    "locale/requestJustify":"This web request is required to create the mentor ticket, please accept the connection request.",
+    "locale/requestJustify":"This web request is required to create the mentor ticket - please accept the connection request.",
     "locale/discord.text": "Join the Neos Discord"
   }
 }
