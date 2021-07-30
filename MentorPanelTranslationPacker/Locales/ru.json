@@ -4,7 +4,7 @@
   "messages": {
     "locale/title.intro":"Потерялись?<br>Добровольцы-Менторы могут помочь",
     "locale/title.offline":"Потерялись?<br>Спросите совета в Discord",
-    "locale/title.ready":"Сейчас появится запрос на разрешение внешнего веб запроса.",
+    "locale/title.ready":"Сейчас появится окно с подтверждением внешнего веб запроса.",
     "locale/title.requested":"Запрос отправлен",
     "locale/title.responding":"Ментор спешит на помощь",
     "locale/title.canceled":"Заявка отменена",
