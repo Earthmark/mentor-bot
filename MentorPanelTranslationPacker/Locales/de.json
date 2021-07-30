@@ -11,7 +11,7 @@
     "locale/title.completed":"Ticket wurde als fertig markiert",
     "locale/description.ready":"Eine Web-Anfrage nötig um ein Ticket zu erstellen, bitte akzeptiere die Anfrage, die erscheint wenn du ein Ticket erstellst",
     "locale/description.requested":"Mentoren sind Freiwillige, du wirst vielleicht später kontaktiert wenn das Ticket im Moment nicht beantwortet wird.{2}{3}{4}",
-    "locale/description.responding":"<color=#88ff88><noparse={1}>{0}</color> hat das Ticket angenommen, soon they should either join the world, or contact you through the Contacts list.{2}{3}{4}",
+    "locale/description.responding":"<color=#88ff88><noparse={1}>{0}</color> hat das Ticket angenommen, der Mentor sollte bald deiner Welt beitreten oder dich per Kontaktliste benachrichtigen.{2}{3}{4}",
     "locale/description.canceled":"Wenn du immer noch Hilfe brauchst, bitte wende dich an den Discord-Server oder an öffentliche Welten. Du wirst möglicherweise später kontaktiert, um bestätigen ob du noch Hilfe benötigst.",
     "locale/description.completed":"Erstelle ruhig ein weiteres Ticket, falls mehr Hilfe benötigt wird oder frage auf Discord. Die Community hilft dir sicher gern!",
     "locale/description.2.disconnected":"<br><br><color=#ff8888>Dieses Panel hat Verbindung mit dem Mentor-Service verloren:</color> Das Panel wird versuchen, sich automatisch erneut zu verbinden. Prüfe, dass die Verbindung nicht blockiert wird in <color=#8888ff>Dashboard -> Home -> Debug -> Web Hosts</color>. Wenn alles scheitert, bitte brich das Ticket ab und erstelle ein neues.<br>Wenn das Problem besteht, bitte lass es uns auf <color=#8888ff>Discord</color> wissen.",
