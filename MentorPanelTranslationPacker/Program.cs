@@ -7,7 +7,7 @@ namespace MentorPanelTranslationPacker
   {
     static void Main(string[] args)
     {
-      using var file = File.CreateText("encodedLang.urlencoded");
+      using var file = File.CreateText("encodedLang.urlencoded.txt");
       foreach(var jsonFile in Directory.EnumerateFiles("./Locales", "*.json"))
       {
         var fileInfo = new FileInfo(jsonFile);
