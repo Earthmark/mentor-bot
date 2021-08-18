@@ -9,7 +9,7 @@
     "locale/title.responding":"メンターがもうすぐ来ます",
     "locale/title.canceled":"ヘルプをキャンセルしました",
     "locale/title.completed":"要求が完了しました",
-    "locale/description.ready":"メンターはコミュニティのボランティアです。 もし数分経っても 誰もチケットを承認しない場合は、 Neos Discord や公開セッションで 質問してください！",
+    "locale/description.ready":"メンターはコミュニティのボランティアです。 もし数分経っても 誰もチケットを承認しない場合は、 <br>Neos Discord や公開セッションで 質問してください！",
     "locale/description.requested":"メンターはボランティアです、 すぐには誰も来られないかもしれません。 その場合は後日連絡が来ることがあります。 {2}{3}{4}",
     "locale/description.responding":"<color=#88ff88><noparse={1}>{0}</color> がリクエストを確認しました。 すぐにワールドに参加して来るか、 「フレンド」からメッセージが飛んでくるかもしれません。 確認してみてください。 {2} {3} {4}",
     "locale/description.canceled":"まだヘルプが必要な場合は、Discordや パブリックワールドで改めて声をかけてください。 後日、ヘルプが必要かどうかの連絡があるかもしれません。",
