@@ -1,7 +1,9 @@
-﻿using Newtonsoft.Json;
+﻿using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
 
 namespace MentorBot.Models
 {
+  [Owned]
   public record User
   {
     [JsonProperty("id")]

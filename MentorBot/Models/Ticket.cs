@@ -4,6 +4,8 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Runtime.Serialization;
 
@@ -11,8 +13,6 @@ namespace MentorBot.Models
 {
   public record TicketCreate
   {
-    [FromQuery]
-    public string? Name { get; init; }
     [FromQuery]
     public string? UserId { get; init; }
     [FromQuery]
@@ -27,69 +27,50 @@ namespace MentorBot.Models
     public string? SessionUrl { get; init; }
     [FromQuery]
     public string? SessionWebUrl { get; init; }
-
-    public Ticket Populate(Ticket ticket)
-    {
-      return ticket with
-      {
-        Lang = Lang,
-        Desc = Desc,
-        Session = Session,
-        SessionId = SessionId,
-        SessionUrl = SessionUrl,
-        SessionWebUrl = SessionWebUrl,
-      };
-    }
   }
 
-  [JsonObject]
-  public record Ticket
+  public class Ticket
   {
-    [JsonProperty("status"), JsonConverter(typeof(StringEnumConverter))]
     public TicketStatus Status { get; set; } = TicketStatus.Requested;
+    public User User { get; set; } = new User();
+    public string? Lang { get; set; }
+    public string? Desc { get; set; }
+    public string? Session { get; set; }
+    public string? SessionId { get; set; }
+    public string? SessionUrl { get; set; }
+    public string? SessionWebUrl { get; set; }
 
-    [JsonProperty("menteeName")]
-    public string? Username { get; init; }
-    [JsonProperty("menteeId")]
-    public string UserId { get; init; } = string.Empty;
-    [JsonProperty("language")]
-    public string? Lang { get; init; }
-    [JsonProperty("description")]
-    public string? Desc { get; init; }
-    [JsonProperty("sessionName")]
-    public string? Session { get; init; }
-    [JsonProperty("sessionId")]
-    public string? SessionId { get; init; }
-    [JsonProperty("sessionUrl")]
-    public string? SessionUrl { get; init; }
-    [JsonProperty("sessionWebUrl")]
-    public string? SessionWebUrl { get; init; }
+    [Key]
+    public long _Id { get; set; }
 
-    [JsonProperty("id")]
-    public string Id { get; init; } = string.Empty;
+    [NotMapped]
+    public ulong Id
+    {
+      get => unchecked((ulong)_Id);
+      set => _Id = unchecked((long)value);
+    }
 
-    [JsonProperty("ticket")]
-    public string LegacyTicket => Id;
+    public Mentor? Mentor { get; set; }
 
-    [JsonProperty("mentorName")]
-    public string? MentorName { get; init; } = null;
+    public DateTime Created { get; set; } = DateTime.UtcNow;
+    public DateTime? Claimed { get; set; }
+    public DateTime? Complete { get; set; }
+    public DateTime? Canceled { get; set; }
 
-    [JsonProperty("mentor")]
-    public string? LegacyMentor => MentorName;
+    public Ticket()
+    {
+    }
 
-    [JsonProperty("mentorDiscordId")]
-    public string? MentorDiscordId { get; init; } = null;
-    [JsonProperty("mentorNeosId")]
-    public string? MentorNeosId { get; init; } = null;
-
-    [JsonProperty("created")]
-    public DateTime Created { get; init; } = DateTime.UtcNow;
-    [JsonProperty("claimed")]
-    public DateTime? Claimed { get; init; } = null;
-    [JsonProperty("complete")]
-    public DateTime? Complete { get; init; } = null;
-    [JsonProperty("canceled")]
-    public DateTime? Canceled { get; init; } = null;
+    public Ticket(TicketCreate createArgs, User user)
+    {
+      User = user;
+      Lang = createArgs.Lang;
+      Desc = createArgs.Desc;
+      Session = createArgs.Session;
+      SessionId = createArgs.SessionId;
+      SessionUrl = createArgs.SessionUrl;
+      SessionWebUrl = createArgs.SessionWebUrl;
+    }
 
     private static string StatusToTitle(TicketStatus status)
     {
@@ -134,20 +115,20 @@ namespace MentorBot.Models
     {
       IEnumerable<(string Name, string Value, bool Inline)?> NullableFields()
       {
-        yield return Field("User", Username, true);
-        yield return Field("User Neos Id", UserId, true);
+        yield return Field("User", User.Name, true);
+        yield return Field("User Neos Id", User.Id, true);
         yield return Field("Language", Lang);
         yield return Field("Description", Desc);
         yield return Field("Session", Session);
         yield return Field("Session ID", SessionId);
         yield return Field("Session Url", SessionUrl);
         yield return Field("Session Web Url", SessionWebUrl);
-        yield return Field("Mentor Name", MentorName, true);
-        yield return Field("Mentor Discord Link", MentorDiscordId, true);
-        yield return Field("Mentor Neos Id",
-          !string.IsNullOrWhiteSpace(MentorName) && string.IsNullOrWhiteSpace(MentorNeosId) ?
-          "<UNREGISTERED>" :
-          MentorNeosId, true);
+        yield return Field("Mentor Name", Mentor?.Name, true);
+        yield return Field("Mentor Discord Link", Mentor?.DiscordId.ToString(), true);
+        //yield return Field("Mentor Neos Id",
+        //  !string.IsNullOrWhiteSpace(Mentor?.Name) && string.IsNullOrWhiteSpace(Mentor.NeosId) ?
+        //  "<UNREGISTERED>" :
+        //  Mentor?.NeosId, true);
         yield return Field("Created", Created.ToString("u"));
         yield return Field("Claimed", Claimed?.ToString("u"));
         yield return Field("Completed", Complete?.ToString("u"));
@@ -155,6 +136,28 @@ namespace MentorBot.Models
       }
       return NullableFields().OnlyNotNull();
     }
+
+
+
+    public ApiSafeTicket ApiProtectedFields()
+    {
+      return new ApiSafeTicket
+      {
+        Id = Id,
+        MentorName = Mentor?.Name,
+        Status = Status
+      };
+    }
+  }
+
+  public record ApiSafeTicket{
+
+    [JsonProperty("id")]
+    public ulong Id { get; init; }
+    [JsonProperty("mentorName")]
+    public string? MentorName { get; init; }
+    [JsonProperty("status"), JsonConverter(typeof(StringEnumConverter))]
+    public TicketStatus Status { get; init; }
   }
 
   public enum TicketStatus

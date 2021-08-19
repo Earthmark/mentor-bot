@@ -1,5 +1,5 @@
-﻿using Microsoft.Azure.Cosmos;
-using Microsoft.Extensions.Options;
+﻿using Microsoft.EntityFrameworkCore;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -7,44 +7,48 @@ namespace MentorBot.Models
 {
   public interface ITicketContext
   {
-    ValueTask<Ticket?> GetTicket(string id, CancellationToken cancellationToken = default);
-    ValueTask<Ticket?> CreateTicket(Ticket item, CancellationToken cancellationToken = default);
-    ValueTask<Ticket?> UpdateTicket(Ticket item, CancellationToken cancellationToken = default);
+    ValueTask<Ticket?> GetTicketAsync(ulong id, CancellationToken cancellationToken = default);
+    ValueTask<Ticket?> CreateTicketAsync(Ticket item, CancellationToken cancellationToken = default);
+    ValueTask<Ticket?> UpdateTicketAsync(ulong id, Func<Ticket, bool> filter, Action<Ticket> mutator, CancellationToken cancellationToken = default);
   }
 
   public class TicketContext : ITicketContext
   {
-    private readonly Container _container;
+    private readonly SignalContext _ctx;
     private readonly ITicketNotifier _notifier;
 
-    public TicketContext(CosmosClient dbClient, ITicketNotifier notifier, IOptionsSnapshot<CosmosOptions> options)
+
+    public TicketContext(SignalContext ctx, ITicketNotifier notifier)
     {
-      _container = dbClient.GetContainer(options.Value.Database, options.Value.TicketsContainer);
+      _ctx = ctx;
       _notifier = notifier;
     }
 
-    public async ValueTask<Ticket?> GetTicket(string id, CancellationToken cancellationToken = default)
+    public async ValueTask<Ticket?> GetTicketAsync(ulong id, CancellationToken cancellationToken = default)
     {
-      try
-      {
-        return await _container.ReadItemAsync<Ticket>(id.ToString(), new PartitionKey(id), cancellationToken: cancellationToken);
-      }
-      catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-      {
-        return null;
-      }
+      long cId = unchecked((long)id);
+      return await _ctx.Tickets.AsNoTracking().SingleOrDefaultAsync(t => t._Id == cId, cancellationToken: cancellationToken);
     }
 
-    public async ValueTask<Ticket?> CreateTicket(Ticket item, CancellationToken cancellationToken = default)
+    public async ValueTask<Ticket?> CreateTicketAsync(Ticket ticket, CancellationToken cancellationToken = default)
     {
-      var ticket = await _container.CreateItemAsync(item, new PartitionKey(item.Id), cancellationToken: cancellationToken);
+      _ctx.Tickets.Add(ticket);
+      await _ctx.SaveChangesAsync(cancellationToken);
       _notifier.NotifyNewTicket(ticket);
       return ticket;
     }
 
-    public async ValueTask<Ticket?> UpdateTicket(Ticket item, CancellationToken cancellationToken = default)
+    public async ValueTask<Ticket?> UpdateTicketAsync(ulong id, Func<Ticket, bool> filter, Action<Ticket> mutator, CancellationToken cancellationToken = default)
     {
-      var ticket = await _container.UpsertItemAsync(item, new PartitionKey(item.Id), cancellationToken: cancellationToken);
+      long cId = unchecked((long)id);
+      var ticket = await _ctx.Tickets.SingleOrDefaultAsync(t => t._Id == cId, cancellationToken: cancellationToken);
+      if (ticket == null || !filter(ticket))
+      {
+        return null;
+      }
+      mutator(ticket);
+      _ctx.Tickets.Update(ticket);
+      await _ctx.SaveChangesAsync(cancellationToken);
       _notifier.NotifyUpdatedTicket(ticket);
       return ticket;
     }

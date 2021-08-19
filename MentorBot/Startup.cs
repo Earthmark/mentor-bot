@@ -6,8 +6,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
 using MentorBot.Extern;
-using Microsoft.Azure.Cosmos;
 using System;
+using Microsoft.EntityFrameworkCore;
 
 namespace MentorBot
 {
@@ -23,7 +23,6 @@ namespace MentorBot
     public void ConfigureServices(IServiceCollection services)
     {
       services.Configure<DiscordOptions>(Configuration.GetSection("Discord"));
-      services.Configure<CosmosOptions>(Configuration.GetSection("Cosmos"));
 
       services.AddSingleton<DiscordContext>();
       services.AddSingleton<IDiscordContext, DiscordContext>(o => o.GetRequiredService<DiscordContext>());
@@ -37,19 +36,19 @@ namespace MentorBot
         c.DefaultRequestHeaders.Add("User-Agent", "MentorBotService");
       });
 
-      services.AddSingleton(options => new CosmosClient(Configuration.GetConnectionString("Cosmos")));
+      services.AddDbContext<SignalContext>(o =>
+        o.UseMySQL(Configuration.GetConnectionString("MentorDatabase")));
 
       services.AddTransient<ITicketContext, TicketContext>();
       services.AddTransient<ITicketStore, TicketStore>();
       services.AddTransient<IDiscordReactionHandler, TicketStore>();
-      services.AddTransient<IMentorContext, MentorContext>();
 
       services.AddSingleton<ITicketNotifier, TicketNotifier>();
 
       services.AddSwaggerGen(c => c.SwaggerDoc("v1", new OpenApiInfo { Title = "Mentor Signal", Version = "v1" }));
       services.AddHealthChecks()
-        .AddCheck<CosmosHealthCheck>("database")
-        .AddCheck<DiscordHealthCheck>("discord");
+        .AddCheck<DiscordHealthCheck>("discord")
+        .AddDbContextCheck<SignalContext>();
       services.AddControllers();
     }
 

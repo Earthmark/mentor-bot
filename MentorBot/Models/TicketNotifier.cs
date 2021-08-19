@@ -27,7 +27,7 @@ namespace MentorBot.Models
       }
     }
 
-    private readonly ConcurrentDictionary<string, TicketWatcher> _ticketMonitor = new();
+    private readonly ConcurrentDictionary<ulong, TicketWatcher> _ticketMonitor = new();
 
     private int _globalWatchers;
 

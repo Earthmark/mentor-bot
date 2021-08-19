@@ -13,7 +13,6 @@ namespace MentorBot.Extern
   public interface IDiscordContext
   {
     DiscordSocketClient Client { get; }
-    ITextChannel? Channel { get; }
     bool Ready { get; }
     ValueTask<IUserMessage?> SendTicketMessage(Ticket ticket, CancellationToken cancellationToken = default);
   }
@@ -87,10 +86,10 @@ namespace MentorBot.Extern
       {
         throw new InvalidOperationException("channel not bound to discord context.");
       }
-      return ulong.TryParse(ticket.Id, out var id) ? await Channel.ModifyMessageAsync(id, props => props.Embed = ticket.ToEmbed(), new RequestOptions
+      return  await Channel.ModifyMessageAsync(ticket.Id, props => props.Embed = ticket.ToEmbed(), new RequestOptions
       {
         CancelToken = cancellationToken
-      }) : null;
+      });
     }
 
     private Task Client_Log(LogMessage arg)
