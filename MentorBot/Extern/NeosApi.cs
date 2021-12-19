@@ -55,3 +55,19 @@ namespace MentorBot.Extern
     }
   }
 }
+
+namespace Microsoft.Extensions.DependencyInjection
+{
+  using MentorBot.Extern;
+  public static class NeosApiExtensions
+  {
+    public static IHttpClientBuilder AddNeosHttpClient(this IServiceCollection services)
+    {
+      return services.AddHttpClient<INeosApi, NeosApi>(c =>
+      {
+        c.BaseAddress = new Uri("https://api.neos.com/");
+        c.DefaultRequestHeaders.Add("User-Agent", "MentorBotService");
+      });
+    }
+  }
+}

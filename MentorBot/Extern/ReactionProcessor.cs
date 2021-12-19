@@ -57,15 +57,15 @@ namespace MentorBot.Extern
       return Task.CompletedTask;
     }
 
-    private Func<Cacheable<IUserMessage, ulong>, ISocketMessageChannel, SocketReaction, Task>
+    private Func<Cacheable<IUserMessage, ulong>, Cacheable<IMessageChannel, ulong>, SocketReaction, Task>
       ReactionHandler_Wrapped(Func<IDiscordReactionHandler, ulong, IUser, Reaction, CancellationToken, ValueTask> bodyGetter) =>
-      (Cacheable<IUserMessage, ulong> msg, ISocketMessageChannel channel, SocketReaction reaction) =>
+      (Cacheable<IUserMessage, ulong> msg, Cacheable<IMessageChannel, ulong> channel, SocketReaction reaction) =>
       {
         _ = Task.Run(() => ReactionHandler(msg, channel, reaction, bodyGetter));
         return Task.CompletedTask;
       };
 
-    private async Task ReactionHandler(Cacheable<IUserMessage, ulong> msg, ISocketMessageChannel channel, SocketReaction reaction, Func<IDiscordReactionHandler, ulong, IUser, Reaction, CancellationToken, ValueTask> bodyGetter)
+    private async Task ReactionHandler(Cacheable<IUserMessage, ulong> msg, Cacheable<IMessageChannel, ulong> channel, SocketReaction reaction, Func<IDiscordReactionHandler, ulong, IUser, Reaction, CancellationToken, ValueTask> bodyGetter)
     {
       if (channel.Id != _options.Channel || _ctx.Client.Rest.CurrentUser.Id == reaction.UserId)
       {
@@ -121,6 +121,5 @@ namespace MentorBot.Extern
         await handler.Unclaim(ticketId, user, cancellationToken);
       }
     }
-
   }
 }

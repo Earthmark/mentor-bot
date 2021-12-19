@@ -20,7 +20,7 @@ namespace MentorBot
       {
         objs.Add(field.Key, new JValue(field.Value.ToString()));
       }
-      return objs.ToObject<T>();
+      return objs.ToObject<T>()!;
     }
   }
 }

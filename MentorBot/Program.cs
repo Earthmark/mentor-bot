@@ -1,21 +1,67 @@
+using MentorBot.Extern;
 using MentorBot.Models;
-using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using System.Threading.Tasks;
+using Microsoft.OpenApi.Models;
+using System;
 
-namespace MentorBot
+var builder = WebApplication.CreateBuilder();
+
+builder.Services.AddDiscordContext(builder.Configuration);
+builder.Services.AddHostedService<ReactionProcessor>();
+
+builder.Services.AddNeosHttpClient();
+
+builder.Services.AddDbContext<SignalContext>(o =>
+  o.UseSqlServer(builder.Configuration.GetConnectionString("SqlDb")));
+
+
+builder.Services.AddTransient<ITicketContext, TicketContext>()
+  .AddTransient<ITicketStore, TicketStore>()
+  .AddTransient<IDiscordReactionHandler, TicketStore>();
+
+builder.Services.AddSingleton<ITicketNotifier, TicketNotifier>();
+
+builder.Services.AddSwaggerGen(c => c.SwaggerDoc("v1", new OpenApiInfo { Title = "Mentor Signal", Version = "v1" }));
+builder.Services.AddHealthChecks()
+  .AddCheck<DiscordHealthCheck>("discord")
+  .AddDbContextCheck<SignalContext>();
+builder.Services.AddControllers();
+
+builder.Services.AddRazorPages();
+
+var app = builder.Build();
+
+app.EnsureDatabaseCreated();
+
+if (!app.Environment.IsDevelopment())
 {
-  public class Program
-  {
-    public static async Task Main(string[] args)
-    {
-      using var host = CreateHostBuilder(args).Build();
-      host.EnsureDatabaseCreated();
-      await host.RunAsync();
-    }
-
-    public static IHostBuilder CreateHostBuilder(string[] args) =>
-      Host.CreateDefaultBuilder(args)
-      .ConfigureWebHostDefaults(webBuilder => webBuilder.UseStartup<Startup>());
-  }
+  app.UseExceptionHandler("/error");
+  app.UseHsts();
+  app.UseHttpsRedirection();
 }
+else
+{
+  app.UseDeveloperExceptionPage();
+  app.UseSwagger();
+  app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Mentor Signal v1"));
+}
+
+app.UseRouting();
+app.UseWebSockets(new WebSocketOptions
+{
+  KeepAliveInterval = TimeSpan.FromSeconds(30)
+});
+
+app.UseEndpoints(endpoints =>
+{
+  endpoints.MapHealthChecks("/health");
+  endpoints.MapControllers();
+});
+
+app.MapRazorPages();
+
+app.Run();

@@ -152,9 +152,9 @@ namespace MentorBot.Models
 
   public record ApiSafeTicket{
 
-    [JsonProperty("id")]
+    [JsonProperty("ticket")]
     public ulong Id { get; init; }
-    [JsonProperty("mentorName")]
+    [JsonProperty("mentor")]
     public string? MentorName { get; init; }
     [JsonProperty("status"), JsonConverter(typeof(StringEnumConverter))]
     public TicketStatus Status { get; init; }

@@ -138,3 +138,20 @@ namespace MentorBot.Extern
     }
   }
 }
+
+namespace Microsoft.Extensions.DependencyInjection
+{
+  using MentorBot.Extern;
+  using Microsoft.Extensions.Configuration;
+
+  public static class DiscordContextExtensions
+  {
+    public static IServiceCollection AddDiscordContext(this IServiceCollection services, IConfiguration config)
+    {
+      return services.Configure<DiscordOptions>(config.GetSection("Discord"))
+        .AddSingleton<DiscordContext>()
+        .AddSingleton<IDiscordContext, DiscordContext>(o => o.GetRequiredService<DiscordContext>())
+        .AddHostedService(o => o.GetRequiredService<DiscordContext>());
+    }
+  }
+}
