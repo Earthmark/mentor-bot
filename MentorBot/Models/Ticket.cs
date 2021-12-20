@@ -130,6 +130,7 @@ namespace MentorBot.Models
     }
 
     public TicketDto ToDto() => new(this);
+    public MentorTicketDto ToMentorDto() => new(this);
   }
 
   public class TicketDto {
@@ -145,6 +146,28 @@ namespace MentorBot.Models
     public string? MentorName => _ticket.Mentor?.Name;
     [JsonProperty("status"), JsonConverter(typeof(StringEnumConverter))]
     public TicketStatus Status => _ticket.Status;
+  }
+
+  public class MentorTicketDto
+  {
+    private readonly Ticket _ticket;
+    public MentorTicketDto(Ticket ticket)
+    {
+      _ticket = ticket;
+    }
+
+    [JsonProperty("ticket")]
+    public ulong Id => _ticket.Id;
+    [JsonProperty("mentor")]
+    public string? MentorName => _ticket.Mentor?.Name;
+    [JsonProperty("status"), JsonConverter(typeof(StringEnumConverter))]
+    public TicketStatus Status => _ticket.Status;
+    [JsonProperty("sessionId")]
+    public string? SessionId => _ticket.SessionId;
+    [JsonProperty("userId")]
+    public string? UserId => _ticket.User.Id;
+    [JsonProperty("userName")]
+    public string UserName => _ticket.User.Name;
   }
 
   public enum TicketStatus

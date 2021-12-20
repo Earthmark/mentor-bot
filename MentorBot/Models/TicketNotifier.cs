@@ -9,7 +9,7 @@ namespace MentorBot.Models
     int GlobalWatchers { get; }
     IDisposable WatchTicketAdded(Action<Ticket> handler);
     IDisposable WatchTicketsUpdated(Action<Ticket> handler);
-    IDisposable WatchTicketUpdated(Ticket ticket, Action<Ticket> handler);
+    IDisposable WatchTicketUpdated(ulong ticketId, Action<Ticket> handler);
     void NotifyNewTicket(Ticket ticket);
     void NotifyUpdatedTicket(Ticket ticket);
   }
@@ -82,9 +82,9 @@ namespace MentorBot.Models
       return new DisposeableFunc(() => TicketUpdated -= handler);
     }
 
-    public IDisposable WatchTicketUpdated(Ticket ticket, Action<Ticket> handler)
+    public IDisposable WatchTicketUpdated(ulong ticketId, Action<Ticket> handler)
     {
-      var monitor = _ticketMonitor.GetOrAdd(ticket.Id, id => new TicketWatcher());
+      var monitor = _ticketMonitor.GetOrAdd(ticketId, id => new TicketWatcher());
       monitor.TicketUpdated += handler;
       return new DisposeableFunc(() => monitor.TicketUpdated -= handler);
     }

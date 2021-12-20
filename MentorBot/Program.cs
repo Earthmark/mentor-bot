@@ -56,11 +56,12 @@ else
   app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Mentor Signal v1"));
 }
 
-app.UseRouting();
 app.UseWebSockets(new WebSocketOptions
 {
   KeepAliveInterval = TimeSpan.FromSeconds(30)
 });
+
+app.UseRouting();
 
 app.UseEndpoints(endpoints =>
 {
