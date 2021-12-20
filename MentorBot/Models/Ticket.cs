@@ -5,13 +5,12 @@ using Newtonsoft.Json.Converters;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Runtime.Serialization;
 
 namespace MentorBot.Models
 {
-  public record TicketCreate
+  public class TicketCreate
   {
     [FromQuery]
     public string? UserId { get; init; }
@@ -41,14 +40,7 @@ namespace MentorBot.Models
     public string? SessionWebUrl { get; set; }
 
     [Key]
-    public long _Id { get; set; }
-
-    [NotMapped]
-    public ulong Id
-    {
-      get => unchecked((ulong)_Id);
-      set => _Id = unchecked((long)value);
-    }
+    public ulong Id { get; set; }
 
     public Mentor? Mentor { get; set; }
 
@@ -137,27 +129,22 @@ namespace MentorBot.Models
       return NullableFields().OnlyNotNull();
     }
 
-
-
-    public ApiSafeTicket ApiProtectedFields()
-    {
-      return new ApiSafeTicket
-      {
-        Id = Id,
-        MentorName = Mentor?.Name,
-        Status = Status
-      };
-    }
+    public TicketDto ToDto() => new(this);
   }
 
-  public record ApiSafeTicket{
+  public class TicketDto {
+    private readonly Ticket _ticket;
+    public TicketDto(Ticket ticket)
+    {
+      _ticket = ticket;
+    }
 
     [JsonProperty("ticket")]
-    public ulong Id { get; init; }
+    public ulong Id => _ticket.Id;
     [JsonProperty("mentor")]
-    public string? MentorName { get; init; }
+    public string? MentorName => _ticket.Mentor?.Name;
     [JsonProperty("status"), JsonConverter(typeof(StringEnumConverter))]
-    public TicketStatus Status { get; init; }
+    public TicketStatus Status => _ticket.Status;
   }
 
   public enum TicketStatus

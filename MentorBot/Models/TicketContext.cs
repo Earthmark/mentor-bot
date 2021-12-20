@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using MentorBot.Extern;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,31 +8,51 @@ namespace MentorBot.Models
 {
   public interface ITicketContext
   {
-    ValueTask<Ticket?> GetTicketAsync(ulong id, CancellationToken cancellationToken = default);
-    ValueTask<Ticket?> CreateTicketAsync(Ticket item, CancellationToken cancellationToken = default);
-    ValueTask<Ticket?> UpdateTicketAsync(ulong id, Func<Ticket, bool> filter, Action<Ticket> mutator, CancellationToken cancellationToken = default);
+    ValueTask<Ticket?> GetTicketAsync(ulong ticketId, CancellationToken cancellationToken = default);
+    ValueTask<Ticket?> CreateTicketAsync(TicketCreate createArgs, CancellationToken cancellationToken = default);
+    ValueTask<Ticket?> TryCompleteTicketAsync(ulong ticketId, string mentorToken, CancellationToken cancellationToken = default);
+    ValueTask<Ticket?> TryCancelTicketAsync(ulong ticketId, CancellationToken cancellationToken = default);
+    ValueTask<Ticket?> TryClaimTicketAsync(ulong ticketId, string mentorToken, CancellationToken cancellationToken = default);
+    ValueTask<Ticket?> TryUnclaimTicketAsync(ulong ticketId, string mentorToken, CancellationToken cancellationToken = default);
   }
 
   public class TicketContext : ITicketContext
   {
     private readonly SignalContext _ctx;
     private readonly ITicketNotifier _notifier;
+    private readonly INeosApi _neosApi;
 
-
-    public TicketContext(SignalContext ctx, ITicketNotifier notifier)
+    public TicketContext(SignalContext ctx, ITicketNotifier notifier, INeosApi neosApi)
     {
       _ctx = ctx;
       _notifier = notifier;
+      _neosApi = neosApi;
     }
 
     public async ValueTask<Ticket?> GetTicketAsync(ulong id, CancellationToken cancellationToken = default)
     {
-      long cId = unchecked((long)id);
-      return await _ctx.Tickets.AsNoTracking().SingleOrDefaultAsync(t => t._Id == cId, cancellationToken: cancellationToken);
+      return await _ctx.Tickets.AsNoTracking().SingleOrDefaultAsync(t => t.Id == id, cancellationToken);
     }
 
-    public async ValueTask<Ticket?> CreateTicketAsync(Ticket ticket, CancellationToken cancellationToken = default)
+    public async ValueTask<Ticket?> CreateTicketAsync(TicketCreate createArgs, CancellationToken cancellationToken = default)
     {
+      if (createArgs.UserId == null)
+      {
+        return null;
+      }
+
+      User? user = await _neosApi.GetUser(createArgs.UserId, cancellationToken);
+      if (user == null)
+      {
+        return null;
+      }
+
+      Ticket ticket = new(createArgs, user)
+      {
+        Status = TicketStatus.Requested,
+        Created = DateTime.UtcNow
+      };
+
       _ctx.Tickets.Add(ticket);
       await _ctx.SaveChangesAsync(cancellationToken);
       _notifier.NotifyNewTicket(ticket);
@@ -40,8 +61,7 @@ namespace MentorBot.Models
 
     public async ValueTask<Ticket?> UpdateTicketAsync(ulong id, Func<Ticket, bool> filter, Action<Ticket> mutator, CancellationToken cancellationToken = default)
     {
-      long cId = unchecked((long)id);
-      var ticket = await _ctx.Tickets.SingleOrDefaultAsync(t => t._Id == cId, cancellationToken: cancellationToken);
+      var ticket = await _ctx.Tickets.SingleOrDefaultAsync(t => t.Id == id, cancellationToken);
       if (ticket == null || !filter(ticket))
       {
         return null;
@@ -50,6 +70,90 @@ namespace MentorBot.Models
       _ctx.Tickets.Update(ticket);
       await _ctx.SaveChangesAsync(cancellationToken);
       _notifier.NotifyUpdatedTicket(ticket);
+      return ticket;
+    }
+
+    public async ValueTask<Ticket?> TryClaimTicketAsync(ulong ticketId, string mentorToken, CancellationToken cancellationToken = default)
+    {
+      var ticketTask = _ctx.Tickets.SingleOrDefaultAsync(t => t.Id == ticketId, cancellationToken);
+      var mentorTask = _ctx.Mentors.SingleOrDefaultAsync(t => t.Token == mentorToken, cancellationToken);
+      var ticket = await ticketTask;
+      var mentor = await mentorTask;
+      if (ticket == null || mentor == null)
+      {
+        return null;
+      }
+      if (ticket.Status == TicketStatus.Requested)
+      {
+        ticket.Mentor = mentor;
+        ticket.Status = TicketStatus.Responding;
+        ticket.Claimed = DateTime.UtcNow;
+
+        _ctx.Tickets.Update(ticket);
+        await _ctx.SaveChangesAsync(cancellationToken);
+        _notifier.NotifyUpdatedTicket(ticket);
+      }
+      return ticket;
+    }
+
+    public async ValueTask<Ticket?> TryUnclaimTicketAsync(ulong ticketId, string mentorToken, CancellationToken cancellationToken = default)
+    {
+      var ticketTask = _ctx.Tickets.SingleOrDefaultAsync(t => t.Id == ticketId, cancellationToken);
+      var ticket = await ticketTask;
+      if (ticket == null || ticket.Mentor?.Token != mentorToken)
+      {
+        return null;
+      }
+      if (ticket.Status == TicketStatus.Responding)
+      {
+        ticket.Status = TicketStatus.Requested;
+        ticket.Claimed = null;
+        ticket.Mentor = null;
+
+        _ctx.Tickets.Update(ticket);
+        await _ctx.SaveChangesAsync(cancellationToken);
+        _notifier.NotifyUpdatedTicket(ticket);
+      }
+      return ticket;
+    }
+
+    public async ValueTask<Ticket?> TryCompleteTicketAsync(ulong ticketId, string mentorToken, CancellationToken cancellationToken = default)
+    {
+      var ticketTask = _ctx.Tickets.SingleOrDefaultAsync(t => t.Id == ticketId, cancellationToken);
+      var ticket = await ticketTask;
+      if (ticket == null || ticket.Mentor?.Token != mentorToken)
+      {
+        return null;
+      }
+      if (ticket.Status == TicketStatus.Responding)
+      {
+        ticket.Status = TicketStatus.Completed;
+        ticket.Complete = DateTime.UtcNow;
+
+        _ctx.Tickets.Update(ticket);
+        await _ctx.SaveChangesAsync(cancellationToken);
+        _notifier.NotifyUpdatedTicket(ticket);
+      }
+      return ticket;
+    }
+
+    public async ValueTask<Ticket?> TryCancelTicketAsync(ulong ticketId, CancellationToken cancellationToken = default)
+    {
+      var ticketTask = _ctx.Tickets.SingleOrDefaultAsync(t => t.Id == ticketId, cancellationToken);
+      var ticket = await ticketTask;
+      if (ticket == null)
+      {
+        return null;
+      }
+      if (!ticket.Status.IsTerminal())
+      {
+        ticket.Status = TicketStatus.Canceled;
+        ticket.Canceled = DateTime.UtcNow;
+
+        _ctx.Tickets.Update(ticket);
+        await _ctx.SaveChangesAsync(cancellationToken);
+        _notifier.NotifyUpdatedTicket(ticket);
+      }
       return ticket;
     }
   }

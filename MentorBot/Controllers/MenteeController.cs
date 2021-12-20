@@ -14,10 +14,10 @@ namespace MentorBot.Controllers
   {
     private readonly ILogger<MenteeController> _logger;
 
-    private readonly ITicketStore _store;
+    private readonly ITicketContext _store;
     private readonly ITicketNotifier _notifier;
 
-    public MenteeController(ILogger<MenteeController> logger, ITicketStore store, ITicketNotifier notifier)
+    public MenteeController(ILogger<MenteeController> logger, ITicketContext store, ITicketNotifier notifier)
     {
       _logger = logger;
       _store = store;
@@ -25,29 +25,31 @@ namespace MentorBot.Controllers
     }
 
     [HttpPost("mentee"), Throttle(6, Name = "Ticket Create")]
-    public async ValueTask<ActionResult<ApiSafeTicket>> Create([FromQuery] TicketCreate createArgs)
+    public async ValueTask<ActionResult<TicketDto>> Create([FromQuery] TicketCreate createArgs)
     {
       var ticket = await _store.CreateTicketAsync(createArgs, HttpContext.RequestAborted);
       if (ticket == null)
       {
         return NotFound();
       }
-      return ticket.ApiProtectedFields();
+
+      return ticket.ToDto();
     }
 
     [HttpGet("mentee/{ticketId}"), Throttle(3, Name = "Ticket Get")]
-    public async ValueTask<ActionResult<ApiSafeTicket>> Get(ulong ticketId)
+    public async ValueTask<ActionResult<TicketDto>> Get(ulong ticketId)
     {
       var ticket = await _store.GetTicketAsync(ticketId, HttpContext.RequestAborted);
       if (ticket == null)
       {
         return NotFound();
       }
-      return ticket.ApiProtectedFields();
+
+      return ticket.ToDto();
     }
 
     [HttpGet("ws/mentee"), Throttle(6, Name = "WS Ticket Create")]
-    public async ValueTask<ActionResult<ApiSafeTicket>> CreateTicket([FromQuery] TicketCreate createArgs, [FromQuery(Name = "ticket")] ulong? ticketId)
+    public async ValueTask<ActionResult<TicketDto>> CreateTicket([FromQuery] TicketCreate createArgs, [FromQuery(Name = "ticket")] ulong? ticketId)
     {
       if (!HttpContext.WebSockets.IsWebSocketRequest)
       {
@@ -89,36 +91,6 @@ namespace MentorBot.Controllers
       return new EmptyResult();
     }
 
-    [HttpGet("ws/mentor"), Throttle(3, Name = "Ticket Get")]
-    public async ValueTask<ActionResult> MentorWatcher()
-    {
-      if (!HttpContext.WebSockets.IsWebSocketRequest)
-      {
-        return BadRequest();
-      }
-
-      using var ws = await HttpContext.WebSockets.AcceptWebSocketAsync();
-
-      byte[] msg = Encoding.UTF8.GetBytes("Ping");
-
-      using (_notifier.WatchTicketAdded(ticket =>
-        ws.SendAsync(msg, WebSocketMessageType.Text, true, HttpContext.RequestAborted)))
-      {
-        try
-        {
-          await foreach (var payload in ws.ReadMessages(HttpContext.RequestAborted))
-          {
-          }
-        }
-        catch (OperationCanceledException)
-        {
-          // Ticket was a terminal state.
-        }
-
-        return new EmptyResult();
-      }
-    }
-
     private async ValueTask WatchTicket(Ticket ticket, WebSocket ws, CancellationToken cancellationToken = default)
     {
       // This token represents if the ticket can continue to allow updates. If this is false we stop trying to change things.
@@ -128,7 +100,7 @@ namespace MentorBot.Controllers
       // This method is responsible for sending updates to listeners, and for watching when it should no longer send updates.
       async ValueTask SendTicket(Ticket tick)
       {
-        var payload = UrlEncoder.Encode(tick.ApiProtectedFields());
+        var payload = UrlEncoder.Encode(tick.ToDto());
         var content = Encoding.UTF8.GetBytes(payload);
 
         await ws.SendAsync(content, WebSocketMessageType.Text, true, subToken);

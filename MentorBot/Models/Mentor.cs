@@ -1,24 +1,32 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Newtonsoft.Json;
-using System.ComponentModel.DataAnnotations.Schema;
+using System.ComponentModel.DataAnnotations;
 
 namespace MentorBot.Models
 {
-  [Owned]
+  [Index(nameof(Token), IsUnique = true)]
   public class Mentor
   {
-    [JsonIgnore]
-    public long _DiscordId { get; set; }
-
-    [JsonProperty("id"), NotMapped]
-    public ulong DiscordId
-    {
-      get => unchecked((ulong)_DiscordId);
-      set => _DiscordId = unchecked((long) value);
-    }
-    [JsonProperty("neosId")]
+    [Key]
     public string NeosId { get; set; } = string.Empty;
-    [JsonProperty("name")]
+    public ulong? DiscordId { get; set; }
     public string Name { get; set; } = string.Empty;
+    [MaxLength(60)]
+    public string? Token { get; set; } = string.Empty;
+
+    public MentorDto ToDto() => new(this);
+  }
+
+  public class MentorDto
+  {
+    private readonly Mentor _mentor;
+    public MentorDto(Mentor mentor)
+    {
+      _mentor = mentor;
+    }
+
+    public string Id => _mentor.NeosId;
+    public ulong? DiscordId => _mentor.DiscordId;
+    public string Name => _mentor.Name;
+    public bool InProgram => !string.IsNullOrWhiteSpace(_mentor.Token);
   }
 }

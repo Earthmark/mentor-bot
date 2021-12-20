@@ -1,3 +1,4 @@
+using MentorBot;
 using MentorBot.Extern;
 using MentorBot.Models;
 using Microsoft.AspNetCore.Builder;
@@ -10,6 +11,8 @@ using System;
 
 var builder = WebApplication.CreateBuilder();
 
+builder.Services.Configure<MentorOptions>(builder.Configuration.GetSection("mentors"));
+
 builder.Services.AddDiscordContext(builder.Configuration);
 builder.Services.AddHostedService<ReactionProcessor>();
 
@@ -18,19 +21,22 @@ builder.Services.AddNeosHttpClient();
 builder.Services.AddDbContext<SignalContext>(o =>
   o.UseSqlServer(builder.Configuration.GetConnectionString("SqlDb")));
 
-
-builder.Services.AddTransient<ITicketContext, TicketContext>()
-  .AddTransient<ITicketStore, TicketStore>()
-  .AddTransient<IDiscordReactionHandler, TicketStore>();
+builder.Services.AddTransient<ITicketContext, TicketContext>();
+  //.AddTransient<IDiscordReactionHandler, TicketStore>();
 
 builder.Services.AddSingleton<ITicketNotifier, TicketNotifier>();
 
+builder.Services.AddTransient<IMentorContext, MentorContext>();
+
+builder.Services.AddSingleton<ITokenGenerator, TokenGenerator>();
+
 builder.Services.AddSwaggerGen(c => c.SwaggerDoc("v1", new OpenApiInfo { Title = "Mentor Signal", Version = "v1" }));
+
 builder.Services.AddHealthChecks()
   .AddCheck<DiscordHealthCheck>("discord")
   .AddDbContextCheck<SignalContext>();
-builder.Services.AddControllers();
 
+builder.Services.AddControllers();
 builder.Services.AddRazorPages();
 
 var app = builder.Build();
@@ -60,8 +66,8 @@ app.UseEndpoints(endpoints =>
 {
   endpoints.MapHealthChecks("/health");
   endpoints.MapControllers();
+  endpoints.MapRazorPages();
+  endpoints.MapSwagger();
 });
-
-app.MapRazorPages();
 
 app.Run();
