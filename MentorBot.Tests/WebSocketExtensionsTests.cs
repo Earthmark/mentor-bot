@@ -50,7 +50,7 @@ namespace MentorBot.Tests
       var socket = CreateDataSocket(expected);
 
       var items = new List<string>();
-      await foreach(var item in socket.ReadMessages())
+      await foreach(var item in socket.ReadRawMessages())
       {
         items.Add(item);
       }

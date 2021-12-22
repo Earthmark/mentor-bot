@@ -12,6 +12,7 @@ using System;
 var builder = WebApplication.CreateBuilder();
 
 builder.Services.Configure<MentorOptions>(builder.Configuration.GetSection("mentors"));
+builder.Services.Configure<NeosApiOptions>(builder.Configuration.GetSection("neosApi"));
 
 builder.Services.AddDiscordContext(builder.Configuration);
 builder.Services.AddHostedService<ReactionProcessor>();
@@ -22,7 +23,6 @@ builder.Services.AddDbContext<SignalContext>(o =>
   o.UseSqlServer(builder.Configuration.GetConnectionString("SqlDb")));
 
 builder.Services.AddTransient<ITicketContext, TicketContext>();
-  //.AddTransient<IDiscordReactionHandler, TicketStore>();
 
 builder.Services.AddSingleton<ITicketNotifier, TicketNotifier>();
 

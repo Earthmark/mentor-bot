@@ -1,5 +1,4 @@
 ﻿using MentorBot.Extern;
-using Microsoft.EntityFrameworkCore;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -29,9 +28,9 @@ namespace MentorBot.Models
       _neosApi = neosApi;
     }
 
-    public async ValueTask<Ticket?> GetTicketAsync(ulong id, CancellationToken cancellationToken = default)
+    public async ValueTask<Ticket?> GetTicketAsync(ulong ticketId, CancellationToken cancellationToken = default)
     {
-      return await _ctx.Tickets.Include(t => t.Mentor).AsNoTracking().SingleOrDefaultAsync(t => t.Id == id, cancellationToken);
+      return await _ctx.GetTicketAsync(ticketId, cancellationToken);
     }
 
     public async ValueTask<Ticket?> CreateTicketAsync(TicketCreate createArgs, CancellationToken cancellationToken = default)
@@ -41,7 +40,7 @@ namespace MentorBot.Models
         return null;
       }
 
-      User? user = await _neosApi.GetUser(createArgs.UserId, cancellationToken);
+      User? user = await _neosApi.GetUserAsync(createArgs.UserId, cancellationToken);
       if (user == null)
       {
         return null;
@@ -59,24 +58,10 @@ namespace MentorBot.Models
       return ticket;
     }
 
-    public async ValueTask<Ticket?> UpdateTicketAsync(ulong id, Func<Ticket, bool> filter, Action<Ticket> mutator, CancellationToken cancellationToken = default)
-    {
-      var ticket = await _ctx.Tickets.Include(t => t.Mentor).SingleOrDefaultAsync(t => t.Id == id, cancellationToken);
-      if (ticket == null || !filter(ticket))
-      {
-        return null;
-      }
-      mutator(ticket);
-      _ctx.Tickets.Update(ticket);
-      await _ctx.SaveChangesAsync(cancellationToken);
-      _notifier.NotifyUpdatedTicket(ticket);
-      return ticket;
-    }
-
     public async ValueTask<Ticket?> TryClaimTicketAsync(ulong ticketId, string mentorToken, CancellationToken cancellationToken = default)
     {
-      var ticket = await _ctx.Tickets.Include(t => t.Mentor).SingleOrDefaultAsync(t => t.Id == ticketId, cancellationToken);
-      var mentor = await _ctx.Mentors.SingleOrDefaultAsync(t => t.Token == mentorToken, cancellationToken);
+      var ticket = await _ctx.GetTicketAsync(ticketId, cancellationToken);
+      var mentor = await _ctx.GetMentorByTokenAsync(mentorToken, cancellationToken);
       if (ticket == null || mentor == null)
       {
         return null;
@@ -96,7 +81,7 @@ namespace MentorBot.Models
 
     public async ValueTask<Ticket?> TryUnclaimTicketAsync(ulong ticketId, string mentorToken, CancellationToken cancellationToken = default)
     {
-      var ticket = await _ctx.Tickets.Include(t => t.Mentor).SingleOrDefaultAsync(t => t.Id == ticketId, cancellationToken);
+      var ticket = await _ctx.GetTicketAsync(ticketId, cancellationToken);
       if (ticket == null || ticket.Mentor?.Token != mentorToken)
       {
         return null;
@@ -116,7 +101,7 @@ namespace MentorBot.Models
 
     public async ValueTask<Ticket?> TryCompleteTicketAsync(ulong ticketId, string mentorToken, CancellationToken cancellationToken = default)
     {
-      var ticket = await _ctx.Tickets.Include(t => t.Mentor).SingleOrDefaultAsync(t => t.Id == ticketId, cancellationToken);
+      var ticket = await _ctx.GetTicketAsync(ticketId, cancellationToken);
       if (ticket == null || ticket.Mentor?.Token != mentorToken)
       {
         return null;
@@ -135,7 +120,7 @@ namespace MentorBot.Models
 
     public async ValueTask<Ticket?> TryCancelTicketAsync(ulong ticketId, CancellationToken cancellationToken = default)
     {
-      var ticket = await _ctx.Tickets.Include(t => t.Mentor).SingleOrDefaultAsync(t => t.Id == ticketId, cancellationToken);
+      var ticket = await _ctx.GetTicketAsync(ticketId, cancellationToken);
       if (ticket == null)
       {
         return null;
