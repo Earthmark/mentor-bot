@@ -1,10 +1,10 @@
 ﻿using MentorBot.Models;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using System;
-using System.Text;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace MentorBot.Controllers
@@ -14,57 +14,67 @@ namespace MentorBot.Controllers
   {
     private readonly ITicketNotifier _notifier;
     private readonly IServiceProvider _provider;
+    private readonly IOptions<JsonOptions> _jsonOpts;
 
-    public WsMentorController(ITicketNotifier notifier, IServiceProvider provider)
+    public WsMentorController(ITicketNotifier notifier, IServiceProvider provider, IOptions<JsonOptions> jsonOpts)
     {
       _notifier = notifier;
       _provider = provider;
+      _jsonOpts = jsonOpts;
     }
 
     [HttpGet("{mentorToken}"), Throttle(3, Name = "Ticket Get")]
     public async ValueTask<ActionResult> MentorWatcher([FromRoute] string mentorToken)
     {
-      using(var scope = _provider.CreateScope())
-      {
-        var ctx = scope.ServiceProvider.GetRequiredService<IMentorContext>();
-        var mentor = await ctx.GetMentorByTokenAsync(mentorToken, HttpContext.RequestAborted);
-        if (mentor == null)
-        {
-          return Unauthorized();
-        }
-      }
-
       if (!HttpContext.WebSockets.IsWebSocketRequest)
       {
         return BadRequest();
       }
 
+      var mentorValid = await _provider.WithScopedServiceAsync(async (IMentorContext ctx) =>
+      {
+        var mentor = await ctx.GetMentorByTokenAsync(mentorToken, HttpContext.RequestAborted);
+        return mentor != null;
+      });
+      if (!mentorValid)
+      {
+        return Unauthorized();
+      }
+
       using var ws = await HttpContext.WebSockets.AcceptWebSocketAsync();
 
-      byte[] msg = Encoding.UTF8.GetBytes("Ping");
-
-      var sender = ws.MessageSender<MentorTicketDto>(HttpContext.RequestAborted);
+      var sender = ws.MessageSender<MentorTicketDto>(_jsonOpts.Value.JsonSerializerOptions, HttpContext.RequestAborted);
 
       using (_notifier.WatchTicketAdded(ticket => sender(ticket.ToMentorDto())))
       {
         try
         {
-          await foreach (var payload in ws.ReadMessages<MentorRequest>(HttpContext.RequestAborted))
+          // Pulse all existing tickets
+          await _provider.WithScopedServiceAsync(async (ITicketContext ctx) =>
           {
-            using var scope = _provider.CreateScope();
-            var ctx = scope.ServiceProvider.GetRequiredService<ITicketContext>();
-
-            var newTicket = payload.Type switch
+            await foreach(var ticket in ctx.GetIncompleteTickets().ToAsyncEnumerable())
             {
-              MentorRequestKind.Claim => await ctx.TryClaimTicketAsync(payload.Ticket, mentorToken, HttpContext.RequestAborted),
-              MentorRequestKind.Unclaim => await ctx.TryUnclaimTicketAsync(payload.Ticket, mentorToken, HttpContext.RequestAborted),
-              MentorRequestKind.Complete => await ctx.TryCompleteTicketAsync(payload.Ticket, mentorToken, HttpContext.RequestAborted),
-              _ => null,
-            };
-            if (newTicket != null)
-            {
-              await sender(newTicket.ToMentorDto());
+              await sender(ticket.ToMentorDto());
             }
+          });
+
+          await foreach (var payload in ws.ReadMessages<MentorRequest>(_jsonOpts.Value.JsonSerializerOptions, HttpContext.RequestAborted))
+          {
+            await _provider.WithScopedServiceAsync(async (ITicketContext ctx) =>
+            {
+              var newTicket = payload.Type switch
+              {
+                MentorRequestKind.Claim => await ctx.TryClaimTicketAsync(payload.Ticket, mentorToken, HttpContext.RequestAborted),
+                MentorRequestKind.Unclaim => await ctx.TryUnclaimTicketAsync(payload.Ticket, mentorToken, HttpContext.RequestAborted),
+                MentorRequestKind.Complete => await ctx.TryCompleteTicketAsync(payload.Ticket, mentorToken, HttpContext.RequestAborted),
+                _ => null,
+              };
+              if (newTicket != null)
+              {
+                await sender(newTicket.ToMentorDto());
+              }
+            });
+
           }
         }
         catch (OperationCanceledException)

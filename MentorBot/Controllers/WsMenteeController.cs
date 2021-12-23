@@ -1,7 +1,7 @@
 ﻿using MentorBot.Models;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using System;
@@ -17,16 +17,16 @@ namespace MentorBot.Controllers
   {
     private readonly ILogger<MenteeController> _logger;
 
-    private readonly ITicketContext _store;
     private readonly ITicketNotifier _notifier;
     private readonly IServiceProvider _provider;
+    private readonly IOptions<JsonOptions> _jsonOpts;
 
-    public WsMenteeController(ILogger<MenteeController> logger, ITicketContext store, ITicketNotifier notifier, IServiceProvider provider)
+    public WsMenteeController(ILogger<MenteeController> logger, ITicketNotifier notifier, IServiceProvider provider, IOptions<JsonOptions> jsonOpts)
     {
       _logger = logger;
-      _store = store;
       _notifier = notifier;
       _provider = provider;
+      _jsonOpts = jsonOpts;
     }
 
     [HttpGet, Throttle(6, Name = "WS Ticket Create")]
@@ -37,17 +37,16 @@ namespace MentorBot.Controllers
         return BadRequest();
       }
 
-      using (var scope = _provider.CreateScope())
+      ticketId = await _provider.WithScopedServiceAsync(async (ITicketContext ctx) =>
       {
-        var ctx = scope.ServiceProvider.GetRequiredService<ITicketContext>();
         var ticket = ticketId == null ?
           await ctx.CreateTicketAsync(createArgs, HttpContext.RequestAborted) :
           await ctx.GetTicketAsync(ticketId.Value, HttpContext.RequestAborted);
-        if (ticket == null)
-        {
-          return BadRequest();
-        }
-        ticketId = ticket.Id;
+        return ticket?.Id;
+      });
+      if (ticketId == null)
+      {
+        return BadRequest();
       }
 
       using var ws = await HttpContext.WebSockets.AcceptWebSocketAsync();
@@ -65,14 +64,15 @@ namespace MentorBot.Controllers
         return BadRequest();
       }
 
-      using (var scope = _provider.CreateScope())
+      var foundTicketId = await _provider.WithScopedServiceAsync(async (ITicketContext ctx) =>
       {
-        var ctx = scope.ServiceProvider.GetRequiredService<ITicketContext>();
-        var ticket = await ctx.GetTicketAsync(ticketId, HttpContext.RequestAborted);
-        if (ticket == null)
-        {
-          return NotFound();
-        }
+        var ticket = 
+          await ctx.GetTicketAsync(ticketId, HttpContext.RequestAborted);
+        return ticket?.Id;
+      });
+      if (foundTicketId == null)
+      {
+        return NotFound();
       }
 
       using var ws = await HttpContext.WebSockets.AcceptWebSocketAsync();
@@ -88,13 +88,12 @@ namespace MentorBot.Controllers
       var stopToken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
       var subToken = stopToken.Token;
 
+      var sender = ws.MessageSender<TicketDto>(_jsonOpts.Value.JsonSerializerOptions, cancellationToken);
+
       // This method is responsible for sending updates to listeners, and for watching when it should no longer send updates.
       async ValueTask SendTicket(Ticket tick)
       {
-        var payload = UrlEncoder.Encode(tick.ToDto());
-        var content = Encoding.UTF8.GetBytes(payload);
-
-        await ws.SendAsync(content, WebSocketMessageType.Text, true, subToken);
+        await sender(tick.ToDto());
 
         if (tick.Status.IsTerminal())
         {
@@ -114,33 +113,30 @@ namespace MentorBot.Controllers
         }
       }))
       {
-        using (var scope = _provider.CreateScope())
+        bool ticketDone = await _provider.WithScopedServiceAsync(async (ITicketContext ctx) =>
         {
-          var ctx = scope.ServiceProvider.GetRequiredService<ITicketContext>();
           var ticket = await ctx.GetTicketAsync(ticketId, cancellationToken);
           if (ticket != null)
           {
             await SendTicket(ticket);
           }
-          else
-          {
-            return;
-          }
-        }
+          return ticket == null;
+        });
 
         try
         {
-          await foreach (var payload in ws.ReadMessages<MenteeRequest>(subToken))
+          await foreach (var payload in ws.ReadMessages<MenteeRequest>(_jsonOpts.Value.JsonSerializerOptions, subToken))
           {
-            using var scope = _provider.CreateScope();
-            var ctx = scope.ServiceProvider.GetRequiredService<ITicketContext>();
-            switch (payload.Type)
+            await _provider.WithScopedServiceAsync(async (ITicketContext ctx) =>
             {
-              case MenteeRequestKind.Cancel:
-                await ctx.TryCancelTicketAsync(ticketId, cancellationToken);
-                break;
+              switch (payload.Type)
+              {
+                case MenteeRequestKind.Cancel:
+                  await ctx.TryCancelTicketAsync(ticketId, cancellationToken);
+                  break;
 
-            }
+              }
+            });
           }
         }
         catch (OperationCanceledException)

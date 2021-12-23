@@ -1,42 +1,42 @@
 using MentorBot;
-using MentorBot.Extern;
 using MentorBot.Models;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
 using System;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
-var builder = WebApplication.CreateBuilder();
+var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<MentorOptions>(builder.Configuration.GetSection("mentors"));
-builder.Services.Configure<NeosApiOptions>(builder.Configuration.GetSection("neosApi"));
-
-builder.Services.AddDiscordContext(builder.Configuration);
-builder.Services.AddHostedService<ReactionProcessor>();
-
-builder.Services.AddNeosHttpClient();
-
-builder.Services.AddDbContext<SignalContext>(o =>
-  o.UseSqlServer(builder.Configuration.GetConnectionString("SqlDb")));
-
-builder.Services.AddTransient<ITicketContext, TicketContext>();
 
 builder.Services.AddSingleton<ITicketNotifier, TicketNotifier>();
 
-builder.Services.AddTransient<IMentorContext, MentorContext>();
+builder.Services.AddDiscordContext(builder.Configuration);
+
+builder.Services.AddNeosHttpClient(builder.Configuration);
+
+builder.Services.AddSignalContexts(builder.Configuration);
 
 builder.Services.AddSingleton<ITokenGenerator, TokenGenerator>();
 
 builder.Services.AddSwaggerGen(c => c.SwaggerDoc("v1", new OpenApiInfo { Title = "Mentor Signal", Version = "v1" }));
 
 builder.Services.AddHealthChecks()
-  .AddCheck<DiscordHealthCheck>("discord")
-  .AddDbContextCheck<SignalContext>();
+  .AddDiscordCheck()
+  .AddSignalHealthChecks();
 
-builder.Services.AddControllers();
+builder.Services.Configure<JsonOptions>(options =>
+{
+  options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+});
+builder.Services.AddControllers().AddJsonOptions(c =>
+{
+  c.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+});
 builder.Services.AddRazorPages();
 
 var app = builder.Build();
@@ -61,14 +61,9 @@ app.UseWebSockets(new WebSocketOptions
   KeepAliveInterval = TimeSpan.FromSeconds(30)
 });
 
-app.UseRouting();
-
-app.UseEndpoints(endpoints =>
-{
-  endpoints.MapHealthChecks("/health");
-  endpoints.MapControllers();
-  endpoints.MapRazorPages();
-  endpoints.MapSwagger();
-});
+app.MapHealthChecks("/health");
+app.MapControllers();
+app.MapRazorPages();
+app.MapSwagger();
 
 app.Run();

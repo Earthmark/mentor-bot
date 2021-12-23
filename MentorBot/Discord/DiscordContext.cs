@@ -1,6 +1,5 @@
 ﻿using Discord;
 using Discord.WebSocket;
-using MentorBot.Models;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -8,32 +7,34 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace MentorBot.Extern
+namespace MentorBot.Discord
 {
-  public interface IDiscordContext
+  public class DiscordOptions
   {
-    DiscordSocketClient Client { get; }
-    bool Ready { get; }
-    ValueTask<IUserMessage?> SendTicketMessage(Ticket ticket, CancellationToken cancellationToken = default);
+    public bool UpdateTickets { get; set; } = true;
+    public string Token { get; set; } = string.Empty;
+    public ulong Channel { get; set; }
   }
 
-  public enum Reaction
+  public interface IDiscordContext
   {
-    Claim,
-    Complete
+    bool ConnectedAndReady { get; }
+    ValueTask<IUserMessage?> SendMessageAsync(Embed embed, CancellationToken cancellationToken = default);
+    ValueTask<IUserMessage?> UpdateMessageAsync(ulong id, Embed embed, CancellationToken cancellationToken = default);
   }
 
   public class DiscordContext : IDiscordContext, IHostedService, IDisposable
   {
     private readonly DiscordOptions _options;
     private readonly ILogger<DiscordContext> _logger;
-    private readonly IDisposable _watchDispose;
 
     public DiscordSocketClient Client { get; }
     public ITextChannel? Channel { get; private set; }
     public bool Ready { get; private set; }
 
-    public DiscordContext(ITicketNotifier notifier, IOptions<DiscordOptions> options, ILogger<DiscordContext> logger)
+    public bool ConnectedAndReady => Client.ConnectionState == ConnectionState.Connected && Ready;
+
+    public DiscordContext(IOptions<DiscordOptions> options, ILogger<DiscordContext> logger)
     {
       Client = new DiscordSocketClient(new DiscordSocketConfig
       {
@@ -44,52 +45,6 @@ namespace MentorBot.Extern
       _options = options.Value;
       _logger = logger;
       Client.Ready += () => Task.FromResult(Ready = true);
-      _watchDispose = notifier.WatchTicketsUpdated(HeadlessTicketUpdate);
-    }
-
-    private async void HeadlessTicketUpdate(Ticket ticket)
-    {
-      try
-      {
-        if (_options.UpdateTickets)
-        {
-          await UpdateTicket(ticket);
-        }
-      }
-      catch(Exception e)
-      {
-        _logger.LogWarning(e, "Error while dealing with detached ticket handler.");
-      }
-    }
-
-    public async ValueTask<IUserMessage?> SendTicketMessage(Ticket ticket, CancellationToken cancellationToken = default)
-    {
-      if (Channel == null)
-      {
-        throw new InvalidOperationException("channel not bound to discord context.");
-      }
-      var msg = await Channel.SendMessageAsync(embed: ticket.ToEmbed(), options: new RequestOptions
-      {
-        CancelToken = cancellationToken
-      });
-      await msg.AddReactionsAsync(new IEmote[]
-      {
-        new Emoji(_options.ClaimEmote),
-        new Emoji(_options.CompleteEmote),
-      });
-      return msg;
-    }
-
-    public async ValueTask<IUserMessage?> UpdateTicket(Ticket ticket, CancellationToken cancellationToken = default)
-    {
-      if (Channel == null)
-      {
-        throw new InvalidOperationException("channel not bound to discord context.");
-      }
-      return  await Channel.ModifyMessageAsync(ticket.Id, props => props.Embed = ticket.ToEmbed(), new RequestOptions
-      {
-        CancelToken = cancellationToken
-      });
     }
 
     private Task Client_Log(LogMessage arg)
@@ -134,14 +89,38 @@ namespace MentorBot.Extern
     public void Dispose()
     {
       Client.Dispose();
-      _watchDispose.Dispose();
+    }
+
+    public async ValueTask<IUserMessage?> SendMessageAsync(Embed embed, CancellationToken cancellationToken = default)
+    {
+      if (Channel == null)
+      {
+        throw new InvalidOperationException("channel not bound to discord context.");
+      }
+      var msg = await Channel.SendMessageAsync(embed: embed, options: new RequestOptions
+      {
+        CancelToken = cancellationToken
+      });
+      return msg;
+    }
+
+    public async ValueTask<IUserMessage?> UpdateMessageAsync(ulong id, Embed embed, CancellationToken cancellationToken = default)
+    {
+      if (Channel == null)
+      {
+        throw new InvalidOperationException("channel not bound to discord context.");
+      }
+      return await Channel.ModifyMessageAsync(id, props => props.Embed = embed, new RequestOptions
+      {
+        CancelToken = cancellationToken
+      });
     }
   }
 }
 
 namespace Microsoft.Extensions.DependencyInjection
 {
-  using MentorBot.Extern;
+  using MentorBot.Discord;
   using Microsoft.Extensions.Configuration;
 
   public static class DiscordContextExtensions
@@ -151,7 +130,14 @@ namespace Microsoft.Extensions.DependencyInjection
       return services.Configure<DiscordOptions>(config.GetSection("Discord"))
         .AddSingleton<DiscordContext>()
         .AddSingleton<IDiscordContext, DiscordContext>(o => o.GetRequiredService<DiscordContext>())
-        .AddHostedService(o => o.GetRequiredService<DiscordContext>());
+        .AddHostedService(o => o.GetRequiredService<DiscordContext>())
+        .AddHostedService<TicketDiscordProxyHost>()
+        .AddTransient<ITicketDiscordProxy, TicketDiscordProxy>();
+    }
+
+    public static IHealthChecksBuilder AddDiscordCheck(this IHealthChecksBuilder builder)
+    {
+      return builder.AddCheck<DiscordHealthCheck>("discord");
     }
   }
 }

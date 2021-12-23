@@ -1,8 +1,6 @@
 ﻿using MentorBot.Models;
-using Newtonsoft.Json;
 using System;
 using System.Net.Http;
-using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Net.Http.Json;
@@ -128,10 +126,11 @@ namespace MentorBot.Extern
 namespace Microsoft.Extensions.DependencyInjection
 {
   using MentorBot.Extern;
+  using Microsoft.Extensions.Configuration;
 
   public static class NeosApiExtensions
   {
-    public static IServiceCollection AddNeosHttpClient(this IServiceCollection services)
+    public static IServiceCollection AddNeosHttpClient(this IServiceCollection services, IConfiguration configuration)
     {
       services.AddHttpClient<INeosApi, NeosApi>(c =>
       {
@@ -139,6 +138,8 @@ namespace Microsoft.Extensions.DependencyInjection
         c.DefaultRequestHeaders.Add("User-Agent", "MentorBotService");
       });
       services.AddSingleton<INeosApiAuthKeeper, NeosApiAuthKeeper>();
+
+      services.Configure<NeosApiOptions>(configuration.GetSection("neosApi"));
 
       return services;
     }

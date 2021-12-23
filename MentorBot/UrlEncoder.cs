@@ -1,26 +1,31 @@
 ﻿using Microsoft.AspNetCore.WebUtilities;
-using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace MentorBot
 {
   public static class UrlEncoder
   {
-    public static string Encode(object o)
+    public static string Encode<TValue>(TValue o, JsonSerializerOptions? serializerOptions = null)
     {
-      var fields = JObject.FromObject(o).ToObject<Dictionary<string, string>>();
+      var node = JsonSerializer.SerializeToNode(o, serializerOptions);
+      var fields = node?.AsObject()
+        .Select(kvp => KeyValuePair.Create(kvp.Key, kvp.Value?.ToString()))
+        .Where(kvp => kvp.Value != null);
       var query = QueryHelpers.AddQueryString("", fields!).Remove(0, 1);
       return query;
     }
 
-    public static T Decode<T>(string query)
+    public static TValue? Decode<TValue>(string query, JsonSerializerOptions? serializerOptions = null)
     {
-      var objs = new JObject();
+      JsonObject obj = new();
       foreach(var field in QueryHelpers.ParseQuery(query))
       {
-        objs.Add(field.Key, new JValue(field.Value.ToString()));
+        obj.Add(field.Key, field.Value.ToString());
       }
-      return objs.ToObject<T>()!;
+      return JsonSerializer.Deserialize<TValue>(obj, serializerOptions);
     }
   }
 }

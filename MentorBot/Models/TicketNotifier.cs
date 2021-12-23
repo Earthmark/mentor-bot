@@ -39,6 +39,7 @@ namespace MentorBot.Models
     public void NotifyNewTicket(Ticket ticket)
     {
       TicketAdded?.Invoke(ticket);
+      NotifyUpdatedTicket(ticket);
     }
 
     public void NotifyUpdatedTicket(Ticket ticket)

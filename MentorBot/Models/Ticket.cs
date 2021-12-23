@@ -1,12 +1,9 @@
 ﻿using Discord;
 using Microsoft.AspNetCore.Mvc;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
-using System.Runtime.Serialization;
 
 namespace MentorBot.Models
 {
@@ -41,6 +38,8 @@ namespace MentorBot.Models
 
     [Key]
     public ulong Id { get; set; }
+
+    public ulong? DiscordId { get; set; }
 
     public Mentor? Mentor { get; set; }
 
@@ -107,6 +106,7 @@ namespace MentorBot.Models
     {
       IEnumerable<(string Name, string Value, bool Inline)?> NullableFields()
       {
+        yield return Field("Ticket Number", Id.ToString());
         yield return Field("User", User.Name, true);
         yield return Field("User Neos Id", User.Id, true);
         yield return Field("Language", Lang);
@@ -116,15 +116,12 @@ namespace MentorBot.Models
         yield return Field("Session Url", SessionUrl);
         yield return Field("Session Web Url", SessionWebUrl);
         yield return Field("Mentor Name", Mentor?.Name, true);
-        yield return Field("Mentor Discord Link", Mentor?.DiscordId.ToString(), true);
-        //yield return Field("Mentor Neos Id",
-        //  !string.IsNullOrWhiteSpace(Mentor?.Name) && string.IsNullOrWhiteSpace(Mentor.NeosId) ?
-        //  "<UNREGISTERED>" :
-        //  Mentor?.NeosId, true);
-        yield return Field("Created", Created.ToString("u"));
-        yield return Field("Claimed", Claimed?.ToString("u"));
-        yield return Field("Completed", Complete?.ToString("u"));
-        yield return Field("Canceled", Canceled?.ToString("u"));
+        yield return Field("Mentor Discord Link", Mentor?.DiscordId?.ToString(), true);
+        yield return Field("Mentor Neos ID", Mentor?.NeosId.ToString(), true);
+        yield return Field("Created", Created.ToDiscordTimecode("f"));
+        yield return Field("Claimed", Claimed?.ToDiscordTimecode("f"));
+        yield return Field("Completed", Complete?.ToDiscordTimecode("f"));
+        yield return Field("Canceled", Canceled?.ToDiscordTimecode("f"));
       }
       return NullableFields().OnlyNotNull();
     }
@@ -134,51 +131,33 @@ namespace MentorBot.Models
   }
 
   public class TicketDto {
-    private readonly Ticket _ticket;
+    protected readonly Ticket _ticket;
     public TicketDto(Ticket ticket)
     {
       _ticket = ticket;
     }
 
-    [JsonProperty("ticket")]
-    public ulong Id => _ticket.Id;
-    [JsonProperty("mentor")]
-    public string? MentorName => _ticket.Mentor?.Name;
-    [JsonProperty("status"), JsonConverter(typeof(StringEnumConverter))]
+    public ulong Ticket => _ticket.Id;
+    public string? Mentor => _ticket.Mentor?.Name;
     public TicketStatus Status => _ticket.Status;
   }
 
-  public class MentorTicketDto
+  public class MentorTicketDto : TicketDto
   {
-    private readonly Ticket _ticket;
-    public MentorTicketDto(Ticket ticket)
+    public MentorTicketDto(Ticket ticket) : base(ticket)
     {
-      _ticket = ticket;
     }
 
-    [JsonProperty("ticket")]
-    public ulong Id => _ticket.Id;
-    [JsonProperty("mentor")]
-    public string? MentorName => _ticket.Mentor?.Name;
-    [JsonProperty("status"), JsonConverter(typeof(StringEnumConverter))]
-    public TicketStatus Status => _ticket.Status;
-    [JsonProperty("sessionId")]
     public string? SessionId => _ticket.SessionId;
-    [JsonProperty("userId")]
     public string? UserId => _ticket.User.Id;
-    [JsonProperty("userName")]
     public string UserName => _ticket.User.Name;
   }
 
   public enum TicketStatus
   {
-    [EnumMember(Value = "requested")]
     Requested,
-    [EnumMember(Value = "responding")]
     Responding,
-    [EnumMember(Value = "completed")]
     Completed,
-    [EnumMember(Value = "canceled")]
     Canceled
   }
 

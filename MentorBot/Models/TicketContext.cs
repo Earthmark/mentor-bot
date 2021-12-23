@@ -1,5 +1,6 @@
 ﻿using MentorBot.Extern;
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -7,12 +8,14 @@ namespace MentorBot.Models
 {
   public interface ITicketContext
   {
+    IQueryable<Ticket> GetIncompleteTickets();
     ValueTask<Ticket?> GetTicketAsync(ulong ticketId, CancellationToken cancellationToken = default);
     ValueTask<Ticket?> CreateTicketAsync(TicketCreate createArgs, CancellationToken cancellationToken = default);
     ValueTask<Ticket?> TryCompleteTicketAsync(ulong ticketId, string mentorToken, CancellationToken cancellationToken = default);
     ValueTask<Ticket?> TryCancelTicketAsync(ulong ticketId, CancellationToken cancellationToken = default);
     ValueTask<Ticket?> TryClaimTicketAsync(ulong ticketId, string mentorToken, CancellationToken cancellationToken = default);
     ValueTask<Ticket?> TryUnclaimTicketAsync(ulong ticketId, string mentorToken, CancellationToken cancellationToken = default);
+    ValueTask<Ticket?> AssignDiscordIdAsync(ulong ticket, ulong discordId, CancellationToken cancellationToken = default);
   }
 
   public class TicketContext : ITicketContext
@@ -26,6 +29,11 @@ namespace MentorBot.Models
       _ctx = ctx;
       _notifier = notifier;
       _neosApi = neosApi;
+    }
+
+    public IQueryable<Ticket> GetIncompleteTickets()
+    {
+      return _ctx.Tickets.Where(t => t.Status == TicketStatus.Requested || t.Status == TicketStatus.Responding);
     }
 
     public async ValueTask<Ticket?> GetTicketAsync(ulong ticketId, CancellationToken cancellationToken = default)
@@ -134,6 +142,19 @@ namespace MentorBot.Models
         await _ctx.SaveChangesAsync(cancellationToken);
         _notifier.NotifyUpdatedTicket(ticket);
       }
+      return ticket;
+    }
+
+    public async ValueTask<Ticket?> AssignDiscordIdAsync(ulong ticketId, ulong discordId, CancellationToken cancellationToken = default)
+    {
+      var ticket = await _ctx.GetTicketAsync(ticketId, cancellationToken);
+      if (ticket == null)
+      {
+        return null;
+      }
+      ticket.DiscordId = discordId;
+      _ctx.Tickets.Update(ticket);
+      await _ctx.SaveChangesAsync(cancellationToken);
       return ticket;
     }
   }

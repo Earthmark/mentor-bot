@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.WebUtilities;
 using System.Security.Cryptography;
 
-namespace MentorBot.Extern
+namespace MentorBot
 {
   public interface ITokenGenerator
   {
@@ -12,7 +12,7 @@ namespace MentorBot.Extern
   {
     public string CreateToken()
     {
-      return Base64UrlTextEncoder.Encode(RandomNumberGenerator.GetBytes(40));
+      return Base64UrlTextEncoder.Encode(RandomNumberGenerator.GetBytes(80));
     }
   }
 }
