@@ -1,29 +1,69 @@
+using MentorBot;
 using MentorBot.Models;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Azure.Cosmos;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
-using System.Threading.Tasks;
+using Microsoft.OpenApi.Models;
+using System;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
-namespace MentorBot
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.Configure<MentorOptions>(builder.Configuration.GetSection("mentors"));
+
+builder.Services.AddSingleton<ITicketNotifier, TicketNotifier>();
+
+builder.Services.AddDiscordContext(builder.Configuration);
+
+builder.Services.AddNeosHttpClient(builder.Configuration);
+
+builder.Services.AddSignalContexts(builder.Configuration);
+
+builder.Services.AddSingleton<ITokenGenerator, TokenGenerator>();
+
+builder.Services.AddSwaggerGen(c => c.SwaggerDoc("v1", new OpenApiInfo { Title = "Mentor Signal", Version = "v1" }));
+
+builder.Services.AddHealthChecks()
+  .AddDiscordCheck()
+  .AddSignalHealthChecks();
+
+builder.Services.Configure<JsonOptions>(options =>
 {
-  public class Program
-  {
-    public static async Task Main(string[] args)
-    {
-      using var host = CreateHostBuilder(args).Build();
-      using(var scope = host.Services.CreateScope())
-      {
-        var client = scope.ServiceProvider.GetRequiredService<CosmosClient>();
-        var opts = scope.ServiceProvider.GetRequiredService<IOptionsSnapshot<CosmosOptions>>();
-        await CosmosDbCreator.EnsureCreated(client, opts);
-      }
-      await host.RunAsync();
-    }
+  options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+});
+builder.Services.AddControllers().AddJsonOptions(c =>
+{
+  c.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+});
+builder.Services.AddRazorPages();
 
-    public static IHostBuilder CreateHostBuilder(string[] args) =>
-      Host.CreateDefaultBuilder(args)
-      .ConfigureWebHostDefaults(webBuilder => webBuilder.UseStartup<Startup>());
-  }
+var app = builder.Build();
+
+app.EnsureDatabaseCreated();
+
+if (!app.Environment.IsDevelopment())
+{
+  app.UseExceptionHandler("/error");
+  app.UseHsts();
+  app.UseHttpsRedirection();
 }
+else
+{
+  app.UseDeveloperExceptionPage();
+  app.UseSwagger();
+  app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Mentor Signal v1"));
+}
+
+app.UseWebSockets(new WebSocketOptions
+{
+  KeepAliveInterval = TimeSpan.FromSeconds(30)
+});
+
+app.MapHealthChecks("/health");
+app.MapControllers();
+app.MapRazorPages();
+app.MapSwagger();
+
+app.Run();
