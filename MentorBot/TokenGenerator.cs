@@ -12,7 +12,7 @@ namespace MentorBot
   {
     public string CreateToken()
     {
-      return Base64UrlTextEncoder.Encode(RandomNumberGenerator.GetBytes(80));
+      return Base64UrlTextEncoder.Encode(RandomNumberGenerator.GetBytes(45));
     }
   }
 }

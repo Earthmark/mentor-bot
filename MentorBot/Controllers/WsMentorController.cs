@@ -31,12 +31,8 @@ namespace MentorBot.Controllers
         return BadRequest();
       }
 
-      var mentorValid = await _provider.WithScopedServiceAsync(async (IMentorContext ctx) =>
-      {
-        var mentor = await ctx.GetMentorByTokenAsync(mentorToken, HttpContext.RequestAborted);
-        return mentor != null;
-      });
-      if (!mentorValid)
+      if (await _provider.WithScopedServiceAsync(async (IMentorContext ctx) =>
+        await ctx.GetMentorByTokenAsync(mentorToken, HttpContext.RequestAborted) == null))
       {
         return Unauthorized();
       }
@@ -74,7 +70,6 @@ namespace MentorBot.Controllers
                 await sender(newTicket.ToMentorDto());
               }
             });
-
           }
         }
         catch (OperationCanceledException)
