@@ -41,7 +41,7 @@ namespace MentorBot.Controllers
 
       var sender = ws.MessageSender<MentorTicketDto>(_jsonOpts.Value.JsonSerializerOptions, HttpContext.RequestAborted);
 
-      using (_notifier.WatchTicketAdded(ticket => sender(ticket.ToMentorDto())))
+      using (_notifier.WatchTicketsUpdated(ticket => sender(ticket.ToMentorDto())))
       {
         try
         {

@@ -133,7 +133,6 @@ namespace MentorBot.Controllers
                 case MenteeRequestKind.Cancel:
                   await ctx.TryCancelTicketAsync(ticketId, cancellationToken);
                   break;
-
               }
             });
           }
