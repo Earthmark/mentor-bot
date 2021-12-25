@@ -52,9 +52,10 @@ if (!app.Environment.IsDevelopment())
 else
 {
   app.UseDeveloperExceptionPage();
-  app.UseSwagger();
-  app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Mentor Signal v1"));
 }
+
+app.UseSwagger();
+app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Mentor Signal v1"));
 
 app.UseWebSockets(new WebSocketOptions
 {
