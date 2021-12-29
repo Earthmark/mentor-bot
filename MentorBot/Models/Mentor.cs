@@ -25,7 +25,6 @@ namespace MentorBot.Models
     }
 
     public string Id => _mentor.NeosId;
-    public ulong? DiscordId => _mentor.DiscordId;
     public string Name => _mentor.Name;
     public bool InProgram => !string.IsNullOrWhiteSpace(_mentor.Token);
   }

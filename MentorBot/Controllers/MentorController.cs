@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -28,7 +29,7 @@ namespace MentorBot.Controllers
     [HttpGet("{neosId}")]
     public async ValueTask<ActionResult<MentorDto?>> Get(string neosId)
     {
-      var mentor = await _ctx.GetMentorAsync(neosId, HttpContext.RequestAborted);
+      var mentor = await _ctx.GetMentorByNeosIdAsync(neosId, HttpContext.RequestAborted);
       if (mentor == null)
       {
         return NotFound();
@@ -43,8 +44,8 @@ namespace MentorBot.Controllers
         _config.Value.ModifyMentorsToken == comparand;
     }
 
-    [HttpPost]
-    public async ValueTask<ActionResult<MentorDto?>> Post([FromQuery] string accessToken, [FromQuery] string neosId)
+    [HttpPost("authorize", Name = "AuthorizeMentor")]
+    public async ValueTask<ActionResult<MentorDto?>> AuthorizeMentor([FromForm]string neosId, [FromForm, DataType(DataType.Password)] string accessToken)
     {
       if (!HasTokenAccess(accessToken))
       {
@@ -60,8 +61,8 @@ namespace MentorBot.Controllers
       return mentor.ToDto();
     }
 
-    [HttpDelete("{neosId}")]
-    public async ValueTask<ActionResult<MentorDto?>> RemoveAccess(string neosId, [FromQuery] string accessToken)
+    [HttpPost("unauthorize", Name = "UnauthorizeMentor")]
+    public async ValueTask<ActionResult<MentorDto?>> UnauthorizeMentor([FromForm] string neosId, [FromForm, DataType(DataType.Password)] string accessToken)
     {
       if (!HasTokenAccess(accessToken))
       {

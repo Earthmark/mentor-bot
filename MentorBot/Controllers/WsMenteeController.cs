@@ -2,8 +2,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
 using System;
 using System.Net.WebSockets;
 using System.Threading;
@@ -154,7 +152,6 @@ namespace MentorBot.Controllers
 
     public class MenteeRequest
     {
-      [JsonConverter(typeof(StringEnumConverter))]
       public MenteeRequestKind Type { get; init; }
     }
 

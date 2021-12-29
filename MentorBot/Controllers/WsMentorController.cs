@@ -58,17 +58,18 @@ namespace MentorBot.Controllers
           {
             await _provider.WithScopedServiceAsync(async (ITicketContext ctx) =>
             {
-              var newTicket = payload.Type switch
+              switch(payload.Type)
               {
-                MentorRequestKind.Claim => await ctx.TryClaimTicketAsync(payload.Ticket, mentorToken, HttpContext.RequestAborted),
-                MentorRequestKind.Unclaim => await ctx.TryUnclaimTicketAsync(payload.Ticket, mentorToken, HttpContext.RequestAborted),
-                MentorRequestKind.Complete => await ctx.TryCompleteTicketAsync(payload.Ticket, mentorToken, HttpContext.RequestAborted),
-                _ => null,
+                case MentorRequestKind.Claim:
+                  await ctx.TryClaimTicketAsync(payload.Ticket, mentorToken, HttpContext.RequestAborted);
+                  break;
+                case MentorRequestKind.Unclaim:
+                  await ctx.TryUnclaimTicketAsync(payload.Ticket, mentorToken, HttpContext.RequestAborted);
+                  break;
+                case MentorRequestKind.Complete:
+                  await ctx.TryCompleteTicketAsync(payload.Ticket, mentorToken, HttpContext.RequestAborted);
+                  break;
               };
-              if (newTicket != null)
-              {
-                await sender(newTicket.ToMentorDto());
-              }
             });
           }
         }
