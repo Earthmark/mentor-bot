@@ -4,6 +4,9 @@
       "secretStore": "LocalSecretsFile",
       "type": "mssql.local",
       "connectionId": "ConnectionStrings:SqlDb"
+    },
+    "secrets1": {
+      "type": "secrets.user"
     }
   }
 }

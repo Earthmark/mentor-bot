@@ -1,4 +1,5 @@
 ﻿using MentorBot.Extern;
+using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,7 +9,7 @@ namespace MentorBot.Models
   public interface IMentorContext
   {
     IAsyncEnumerable<Mentor> Mentors();
-    ValueTask<Mentor?> GetMentorAsync(string neosId, CancellationToken cancellationToken = default);
+    ValueTask<Mentor?> GetMentorByNeosIdAsync(string neosId, CancellationToken cancellationToken = default);
     ValueTask<Mentor?> GetMentorByTokenAsync(string token, CancellationToken cancellationToken = default);
     ValueTask<Mentor?> AddMentorAsync(string neosId, CancellationToken cancellationToken = default);
     ValueTask<Mentor?> RemoveMentorAccess(string neosId, CancellationToken cancellationToken = default);
@@ -32,20 +33,20 @@ namespace MentorBot.Models
       return _ctx.Mentors.AsAsyncEnumerable();
     }
 
-    public async ValueTask<Mentor?> GetMentorAsync(string neosId, CancellationToken cancellationToken)
+    public async ValueTask<Mentor?> GetMentorByNeosIdAsync(string neosId, CancellationToken cancellationToken)
     {
-      return await _ctx.GetMentorByNeosIdAsync(neosId, cancellationToken);
+      return await _ctx.Mentors.SingleOrDefaultAsync(t => t.NeosId == neosId, cancellationToken);
     }
 
     public async ValueTask<Mentor?> GetMentorByTokenAsync(string token, CancellationToken cancellationToken)
     {
-      return await _ctx.GetMentorByTokenAsync(token, cancellationToken);
+      return await _ctx.Mentors.SingleOrDefaultAsync(t => t.Token == token, cancellationToken);
     }
 
     public async ValueTask<Mentor?> AddMentorAsync(string neosId, CancellationToken cancellationToken)
     {
       var mentorUserTask = _neosApi.GetUserAsync(neosId, cancellationToken);
-      var existingMentorTask = _ctx.GetMentorByNeosIdAsync(neosId, cancellationToken);
+      var existingMentorTask = GetMentorByNeosIdAsync(neosId, cancellationToken);
 
       var mentorUser = await mentorUserTask;
       if (mentorUser == null)
@@ -73,7 +74,7 @@ namespace MentorBot.Models
 
     public async ValueTask<Mentor?> RemoveMentorAccess(string neosId, CancellationToken cancellationToken)
     {
-      var mentor = await _ctx.GetMentorByNeosIdAsync(neosId, cancellationToken);
+      var mentor = await GetMentorByNeosIdAsync(neosId, cancellationToken);
       if(mentor != null)
       {
         mentor.Token = null;

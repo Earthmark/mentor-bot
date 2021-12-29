@@ -21,7 +21,7 @@ builder.Services.AddNeosHttpClient(builder.Configuration);
 
 builder.Services.AddSignalContexts(builder.Configuration);
 
-builder.Services.AddSingleton<ITokenGenerator, TokenGenerator>();
+builder.Services.AddTransient<ITokenGenerator, TokenGenerator>();
 
 builder.Services.AddSwaggerGen(c => c.SwaggerDoc("v1", new OpenApiInfo { Title = "Mentor Signal", Version = "v1" }));
 

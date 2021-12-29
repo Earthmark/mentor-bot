@@ -1,0 +1,105 @@
+﻿@page
+@model MentorBot.Pages.IndexModel
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="description" content="Mentor Bot Web Portal">
+    <title>Mentor Bot Web Portal</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js" crossorigin="anonymous"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script>
+      function sendRequest(elementId, reportingElement) {
+          var dataType = 'application/x-www-form-urlencoded; charset=utf-8';
+          var element = $(elementId);
+          var data = element.serialize();
+
+          $.ajax(element.attr('action'), {
+            type: 'POST',
+            contentType: dataType,
+            data: data,
+            success: function(result) {
+                location.reload();
+            },
+            error: function(result) {
+              if (result.status === 401) {
+                alert("Lead access token invalid.");
+              } else if (result.status === 404) {
+                alert("User with provided Neos ID not found.")
+              }
+            }
+          });
+        return false;
+      }
+    </script>
+</head>
+<body style="height: 100vh">
+  <div class="modal modal-tour position-static d-block bg-secondary py-5" tabindex="-1" role="dialog">
+    
+    @{
+      async Task Modal(Func<Task> body)
+      {
+        <div class="modal-dialog" role="document">
+          <div class="modal-content rounded-6 shadow">
+            <div class="modal-body p-5">
+              @{await body();}
+            </div>
+          </div>
+        </div>
+      }
+
+      async Task Mentors()
+      {
+        <h5>Mentors</h5>
+        <table class="table">
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col">Is Active</th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach (var mentor in Model.Mentors)
+            {
+              <tr>
+                <td>@mentor.Name</td>
+                <td>@mentor.InProgram</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+
+      async Task Form(string title, string actionName)
+      {
+        <form method="post" onsubmit="return sendRequest('#@actionName')" id="@(actionName)" asp-controller="Mentor" asp-action="@actionName">
+            <h5>@title</h5>
+            <div class="mb-3">
+              <label for="@(actionName)AccessToken" class="form-label">Lead Access Token</label>
+              <input name="accessToken" type="password" class="form-control" id="@(actionName)AccessToken" />
+              <div class="invalid-feedback">
+                Incorrect Token, contact service owner if you forgot it.
+              </div>
+            </div>
+            <div class="mb-3">
+              <label for="@(actionName)NeosId" class="form-label">Mentor Neos ID</label>
+              <input name="neosId" type="text" class="form-control" id="@(actionName)NeosId" />
+              <div class="invalid-feedback">
+                Unknown Neos user ID.
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Submit</button>
+        </form>
+      }
+
+      await Modal(Mentors);
+      await Modal(() => Form("Authorize Mentor", "AuthorizeMentor"));
+      await Modal(() => Form("Unauthorize Mentor", "UnauthorizeMentor"));
+    }
+  </div>
+</body>
+</html>
