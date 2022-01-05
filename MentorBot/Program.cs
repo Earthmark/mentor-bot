@@ -1,5 +1,6 @@
 using MentorBot;
 using MentorBot.Models;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,6 +38,15 @@ builder.Services.AddControllers().AddJsonOptions(c =>
 {
   c.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
 });
+
+builder.Services.AddAuthentication(c =>
+{
+  c.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+}).AddCookie(c =>
+{
+  c.ExpireTimeSpan = TimeSpan.FromHours(3);
+});
+
 builder.Services.AddRazorPages();
 
 var app = builder.Build();
@@ -53,6 +63,11 @@ else
 {
   app.UseDeveloperExceptionPage();
 }
+
+app.UseRouting();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.UseSwagger();
 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Mentor Signal v1"));

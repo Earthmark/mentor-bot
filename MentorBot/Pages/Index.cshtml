@@ -1,105 +1,111 @@
 ﻿@page
-@model MentorBot.Pages.IndexModel
+@using System.Security.Claims
+@inject MentorBot.Models.IMentorContext ctx
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 
+@{
+  var loggedIn = HttpContext.User.Identity?.IsAuthenticated ?? false;
+}
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8" />
-    <meta name="description" content="Mentor Bot Web Portal">
-    <title>Mentor Bot Web Portal</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js" crossorigin="anonymous"></script>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
-    <script>
-      function sendRequest(elementId, reportingElement) {
-          var dataType = 'application/x-www-form-urlencoded; charset=utf-8';
-          var element = $(elementId);
-          var data = element.serialize();
-
-          $.ajax(element.attr('action'), {
-            type: 'POST',
-            contentType: dataType,
-            data: data,
-            success: function(result) {
-                location.reload();
-            },
-            error: function(result) {
-              if (result.status === 401) {
-                alert("Lead access token invalid.");
-              } else if (result.status === 404) {
-                alert("User with provided Neos ID not found.")
-              }
+  <meta charset="utf-8" />
+  <meta name="description" content="Mentor Bot Web Portal">
+  <title>Mentor Bot Web Portal</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js" crossorigin="anonymous"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+  <script>
+    function sendRequest(event) {
+        event.preventDefault();
+        var element = $(event.target);
+        var data = element.serialize()
+        console.log("Sending", data);
+        $.ajax(element.attr('action'), {
+          type: 'POST',
+          contentType: 'application/x-www-form-urlencoded; charset=utf-8',
+          data: data,
+          success: function(result) {
+              location.reload();
+          },
+          error: function(result) {
+            if (result.status === 401) {
+              alert("Lead access token invalid.");
+            } else if (result.status === 404) {
+              alert("User with provided Neos ID not found.");
+            } else {
+              alert("Internal error.");
             }
-          });
-        return false;
-      }
-    </script>
+          }
+        });
+      return false;
+    }
+  </script>
 </head>
 <body style="height: 100vh">
-  <div class="modal modal-tour position-static d-block bg-secondary py-5" tabindex="-1" role="dialog">
-    
-    @{
-      async Task Modal(Func<Task> body)
+  <nav class="navbar fixed-top navbar-expand-lg navbar-light bg-light">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">Mentor-Bot</a>
+      @if (!loggedIn)
       {
-        <div class="modal-dialog" role="document">
-          <div class="modal-content rounded-6 shadow">
-            <div class="modal-body p-5">
-              @{await body();}
-            </div>
-          </div>
-        </div>
-      }
-
-      async Task Mentors()
-      {
-        <h5>Mentors</h5>
-        <table class="table">
-          <thead>
-            <tr>
-              <th scope="col">Name</th>
-              <th scope="col">Is Active</th>
-            </tr>
-          </thead>
-          <tbody>
-            @foreach (var mentor in Model.Mentors)
-            {
-              <tr>
-                <td>@mentor.Name</td>
-                <td>@mentor.InProgram</td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      }
-
-      async Task Form(string title, string actionName)
-      {
-        <form method="post" onsubmit="return sendRequest('#@actionName')" id="@(actionName)" asp-controller="Mentor" asp-action="@actionName">
-            <h5>@title</h5>
-            <div class="mb-3">
-              <label for="@(actionName)AccessToken" class="form-label">Lead Access Token</label>
-              <input name="accessToken" type="password" class="form-control" id="@(actionName)AccessToken" />
-              <div class="invalid-feedback">
-                Incorrect Token, contact service owner if you forgot it.
-              </div>
-            </div>
-            <div class="mb-3">
-              <label for="@(actionName)NeosId" class="form-label">Mentor Neos ID</label>
-              <input name="neosId" type="text" class="form-control" id="@(actionName)NeosId" />
-              <div class="invalid-feedback">
-                Unknown Neos user ID.
-              </div>
-            </div>
-            <button type="submit" class="btn btn-primary">Submit</button>
+        <form class="d-flex" method="post" asp-controller="Login" asp-action="login">
+          <input type="password" name="accessToken" class="form-control me-2" placeholder="Lead Access Token" aria-label="Access token" />
+          <button type="submit" class="btn btn-primary">Login</button>
         </form>
       }
-
-      await Modal(Mentors);
-      await Modal(() => Form("Authorize Mentor", "AuthorizeMentor"));
-      await Modal(() => Form("Unauthorize Mentor", "UnauthorizeMentor"));
-    }
+      </div>
+  </nav>
+  <div class="modal modal-tour position-static d-block bg-secondary py-5" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content rounded-6 shadow">
+        <div class="modal-header">
+          <h5 class="modal-title">Mentors</h5>
+        </div>
+        <div class="modal-body">
+          <table class="table">
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Can claim tickets</th>
+                @if (loggedIn)
+                {
+                  <th scope="col">Modify Access</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @await foreach (var mentor in ctx.Mentors()
+                .Select(m => m.ToDto()).WithCancellation(HttpContext.RequestAborted))
+              {
+                <tr>
+                  <td>@mentor.Name</td>
+                  <td>@(mentor.InProgram ? "Yes" : "No")</td>
+                  @if (loggedIn)
+                  {
+                    <td>
+                      <form class="d-flex" method="post" onsubmit="return sendRequest(event)" asp-controller="Mentor" asp-action="@(mentor.InProgram ? "UnauthorizeMentor" : "AuthorizeMentor")">
+                        <input type="hidden" name="neosId" value="@mentor.Id">
+                        <button class="btn @(mentor.InProgram ? "btn-outline-danger" : "btn-outline-warning")" type="submit">@(mentor.InProgram ? "Unauthorize" : "Authorize")</button>
+                      </form>
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        @if (loggedIn)
+        {
+          <div class="modal-footer">
+            <form class="input-group" onsubmit="return sendRequest(event)" id="addMentorForm" method="post" asp-controller="Mentor" asp-action="AuthorizeMentor">
+              <input type="text" class="form-control" name="neosId" placeholder="Neos User ID to register" aria-label="Neos User ID" aria-describedby="button-addon2">
+              <button class="btn btn-outline-secondary" type="submit" id="button-addon2">Register</button>
+            </form> 
+          </div>
+        }
+      </div>
+    </div>
   </div>
 </body>
 </html>

@@ -48,7 +48,7 @@ namespace MentorBot.Controllers
           // Pulse all existing tickets
           await _provider.WithScopedServiceAsync(async (ITicketContext ctx) =>
           {
-            await foreach(var ticket in ctx.GetIncompleteTickets().ToAsyncEnumerable())
+            await foreach(var ticket in ctx.GetIncompleteTickets().WithCancellation(HttpContext.RequestAborted))
             {
               await sender(ticket.ToMentorDto());
             }

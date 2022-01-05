@@ -1,6 +1,7 @@
 ﻿using MentorBot.Extern;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,7 +10,7 @@ namespace MentorBot.Models
 {
   public interface ITicketContext
   {
-    IQueryable<Ticket> GetIncompleteTickets();
+    IAsyncEnumerable<Ticket> GetIncompleteTickets();
     ValueTask<Ticket?> GetTicketAsync(ulong ticketId, CancellationToken cancellationToken = default);
     ValueTask<Ticket?> CreateTicketAsync(TicketCreate createArgs, CancellationToken cancellationToken = default);
     ValueTask<Ticket?> TryCompleteTicketAsync(ulong ticketId, string mentorToken, CancellationToken cancellationToken = default);
@@ -34,9 +35,9 @@ namespace MentorBot.Models
       _neosApi = neosApi;
     }
 
-    public IQueryable<Ticket> GetIncompleteTickets()
+    public IAsyncEnumerable<Ticket> GetIncompleteTickets()
     {
-      return _ctx.Tickets.Where(t => t.Status == TicketStatus.Requested || t.Status == TicketStatus.Responding);
+      return _ctx.Tickets.Where(t => t.Status == TicketStatus.Requested || t.Status == TicketStatus.Responding).AsAsyncEnumerable();
     }
 
     public async ValueTask<Ticket?> GetTicketAsync(ulong ticketId, CancellationToken cancellationToken = default)
