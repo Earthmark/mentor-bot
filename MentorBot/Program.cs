@@ -31,7 +31,6 @@ if (hasSwagger)
 }
 
 builder.Services.AddHealthChecks()
-  .AddDiscordCheck()
   .AddSignalHealthChecks();
 
 builder.Services.Configure<JsonOptions>(options =>

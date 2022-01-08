@@ -157,14 +157,11 @@ namespace Microsoft.Extensions.DependencyInjection
           .AddHostedService<DiscordHostedServiceProxy>()
           .AddHostedService<TicketDiscordProxyHost>()
           .AddTransient<ITicketDiscordProxy, TicketDiscordProxy>();
+
+        services.AddHealthChecks().AddCheck<DiscordHealthCheck>("discord");
       }
 
       return services;
-    }
-
-    public static IHealthChecksBuilder AddDiscordCheck(this IHealthChecksBuilder builder)
-    {
-      return builder.AddCheck<DiscordHealthCheck>("discord");
     }
   }
 }
