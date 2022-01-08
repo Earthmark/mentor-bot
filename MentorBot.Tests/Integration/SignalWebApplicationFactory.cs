@@ -35,16 +35,16 @@ namespace MentorBot.Tests.Integration
       builder.ConfigureServices(services =>
       {
         // Prevent discord from spinning up.
-        Remove<IHostedService, DiscordHostedServiceProxy>(services);
+        services.TryRemove<IHostedService, DiscordHostedServiceProxy>();
 
-        Replace(services, new DbContextOptionsBuilder<SignalContext>()
+        services.Replace(new DbContextOptionsBuilder<SignalContext>()
           .UseSqlite("Filename=integration.db").Options);
 
         services.AddDbContext<SignalContext>();
 
-        Replace(services, NeosApi.Object);
-        Replace(services, Discord.Object);
-        Replace(services, TokenGen.Object);
+        services.Replace(NeosApi.Object);
+        services.Replace(Discord.Object);
+        services.Replace(TokenGen.Object);
 
         var sp = services.BuildServiceProvider();
 
@@ -75,28 +75,6 @@ namespace MentorBot.Tests.Integration
       });
     }
 
-    private static void Remove<T>(IServiceCollection services)
-    {
-      var descriptor = services.SingleOrDefault(
-          d => d.ServiceType ==
-              typeof(T));
-      services.Remove(descriptor);
-    }
-
-    private static void Remove<TInterface, TImplementation>(IServiceCollection services)
-    {
-      var descriptor = services.Single(
-          d => d.ServiceType ==
-              typeof(TInterface) && d.ImplementationType == typeof(TImplementation));
-      services.Remove(descriptor);
-    }
-
-    private static void Replace<T>(IServiceCollection services, T instance) where T : class
-    {
-      Remove<T>(services);
-      services.AddSingleton(instance);
-    }
-
     public void AddNeosUser(string userId, string userName)
     {
       NeosApi.Setup(a => a.GetUserAsync(userId, It.IsAny<CancellationToken>())).ReturnsAsync(new User()
@@ -104,6 +82,48 @@ namespace MentorBot.Tests.Integration
         Id = userId,
         Name = userName
       });
+    }
+  }
+
+  public static class ServiceCollectionExtensions
+  {
+    public static IServiceCollection Remove<IService>(this IServiceCollection services)
+    {
+      var descriptor = services.Single(
+          d => d.ServiceType ==
+              typeof(IService));
+      services.Remove(descriptor);
+      return services;
+    }
+    public static IServiceCollection Remove<TInterface, TImplementation>(this IServiceCollection services)
+    {
+      var descriptor = services.Single(
+          d => d.ServiceType ==
+              typeof(TInterface) && d.ImplementationType == typeof(TImplementation));
+      services.Remove(descriptor);
+      return services;
+    }
+    public static IServiceCollection TryRemove<IService>(this IServiceCollection services)
+    {
+      var descriptor = services.SingleOrDefault(
+          d => d.ServiceType ==
+              typeof(IService));
+      services.Remove(descriptor);
+      return services;
+    }
+    public static IServiceCollection TryRemove<TInterface, TImplementation>(this IServiceCollection services)
+    {
+      var descriptor = services.SingleOrDefault(
+          d => d.ServiceType ==
+              typeof(TInterface) && d.ImplementationType == typeof(TImplementation));
+      services.Remove(descriptor);
+      return services;
+    }
+    public static IServiceCollection Replace<IService>(this IServiceCollection services, IService instance) where IService : class
+    {
+      services.TryRemove<IService>();
+      services.AddSingleton(instance);
+      return services;
     }
   }
 }
