@@ -22,14 +22,14 @@ namespace MentorBot.Tests.Integration
     public async Task CreateAndCancelTicketSequence()
     {
       string ticket;
-      using (var mentee = await _wsClient.BindUser("/ws/mentee?userId=U-User&ticket="))
+      using (var mentee = await _wsClient.BindUser("/ws/mentee?userId=U-User"))
       {
         var msg = await mentee.ReadAsync();
         ticket = Assert.Contains("ticket", msg);
         Assert.Equal("requested", Assert.Contains("status", msg));
       }
 
-      using (var mentee = await _wsClient.BindUser($"/ws/mentee?userId=U-User&ticket={ticket}"))
+      using (var mentee = await _wsClient.BindUser($"/ws/mentee/{ticket}"))
       {
         var msg = await mentee.ReadAsync();
         Assert.Equal(ticket, Assert.Contains("ticket", msg));
@@ -48,7 +48,7 @@ namespace MentorBot.Tests.Integration
       using var mentor = await _wsClient.BindUser("/ws/mentor/MENTOR");
 
       string ticket;
-      using (var mentee = await _wsClient.BindUser("/ws/mentee?userId=U-User&ticket="))
+      using (var mentee = await _wsClient.BindUser("/ws/mentee?userId=U-User"))
       {
         var msg = await mentee.ReadAsync();
         ticket = Assert.Contains("ticket", msg);
@@ -57,7 +57,7 @@ namespace MentorBot.Tests.Integration
 
       var mentorMsg = await mentor.ReadAsync(ticket);
 
-      using (var mentee = await _wsClient.BindUser($"/ws/mentee?userId=U-User&ticket={ticket}"))
+      using (var mentee = await _wsClient.BindUser($"/ws/mentee/{ticket}"))
       {
         var msg = await mentee.ReadAsync();
         Assert.Equal(ticket, Assert.Contains("ticket", msg));
@@ -83,14 +83,14 @@ namespace MentorBot.Tests.Integration
       using var mentor = await _wsClient.BindUser("/ws/mentor/MENTOR");
 
       string ticket;
-      using (var mentee = await _wsClient.BindUser("/ws/mentee?userId=U-User&ticket="))
+      using (var mentee = await _wsClient.BindUser("/ws/mentee?userId=U-User"))
       {
         var msg = await mentee.ReadAsync();
         ticket = Assert.Contains("ticket", msg);
         Assert.Equal("requested", Assert.Contains("status", msg));
       }
 
-      using (var mentee = await _wsClient.BindUser($"/ws/mentee?userId=U-User&ticket={ticket}"))
+      using (var mentee = await _wsClient.BindUser($"/ws/mentee/{ticket}"))
       {
         var msg = await mentee.ReadAsync();
         Assert.Equal(2, msg.Count);

@@ -21,7 +21,7 @@ namespace MentorBot.Tests.Integration
       using var mentor = await _wsClient.BindUser("/ws/mentor/MENTOR");
 
       string ticket;
-      using (var mentee = await _wsClient.BindUser("/ws/mentee?userId=U-User&ticket="))
+      using (var mentee = await _wsClient.BindUser("/ws/mentee?userId=U-User"))
       {
         var msg = await mentee.ReadAsync();
         ticket = Assert.Contains("ticket", msg);
@@ -35,7 +35,7 @@ namespace MentorBot.Tests.Integration
       Assert.Equal("U-User", Assert.Contains("userId", mentorMsg));
       Assert.Equal("User", Assert.Contains("userName", mentorMsg));
 
-      using (var mentee = await _wsClient.BindUser($"/ws/mentee?userId=U-User&ticket={ticket}"))
+      using (var mentee = await _wsClient.BindUser($"/ws/mentee/{ticket}"))
       {
         var msg = await mentee.ReadAsync();
         Assert.Equal(ticket, Assert.Contains("ticket", msg));
@@ -67,7 +67,7 @@ namespace MentorBot.Tests.Integration
       using var mentor = await _wsClient.BindUser("/ws/mentor/MENTOR");
 
       string ticket;
-      using (var mentee = await _wsClient.BindUser("/ws/mentee?userId=U-User&ticket="))
+      using (var mentee = await _wsClient.BindUser("/ws/mentee?userId=U-User"))
       {
         var msg = await mentee.ReadAsync();
         ticket = Assert.Contains("ticket", msg);
@@ -82,7 +82,7 @@ namespace MentorBot.Tests.Integration
       Assert.Equal("U-User", Assert.Contains("userId", mentorMsg));
       Assert.Equal("User", Assert.Contains("userName", mentorMsg));
 
-      using (var mentee = await _wsClient.BindUser($"/ws/mentee?userId=U-User&ticket={ticket}"))
+      using (var mentee = await _wsClient.BindUser($"/ws/mentee/{ticket}"))
       {
         var msg = await mentee.ReadAsync();
         Assert.Equal(2, msg.Count);
