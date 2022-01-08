@@ -116,6 +116,26 @@ namespace MentorBot.Discord
       });
     }
   }
+
+  public class DiscordHostedServiceProxy : IHostedService
+  {
+    private readonly DiscordContext _context;
+
+    public DiscordHostedServiceProxy(DiscordContext ctx)
+    {
+      _context = ctx;
+    }
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+      return _context.StartAsync(cancellationToken);
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+      return _context.StopAsync(cancellationToken);
+    }
+  }
 }
 
 namespace Microsoft.Extensions.DependencyInjection
@@ -130,7 +150,7 @@ namespace Microsoft.Extensions.DependencyInjection
       return services.Configure<DiscordOptions>(config.GetSection("Discord"))
         .AddSingleton<DiscordContext>()
         .AddSingleton<IDiscordContext, DiscordContext>(o => o.GetRequiredService<DiscordContext>())
-        .AddHostedService(o => o.GetRequiredService<DiscordContext>())
+        .AddHostedService<DiscordHostedServiceProxy>()
         .AddHostedService<TicketDiscordProxyHost>()
         .AddTransient<ITicketDiscordProxy, TicketDiscordProxy>();
     }

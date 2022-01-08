@@ -35,7 +35,7 @@ namespace MentorBot.Tests.Integration
       builder.ConfigureServices(services =>
       {
         // Prevent discord from spinning up.
-        Remove<IHostedService, DiscordContext>(services);
+        Remove<IHostedService, DiscordHostedServiceProxy>(services);
 
         Replace(services, new DbContextOptionsBuilder<SignalContext>()
           .UseSqlite("Filename=integration.db").Options);
@@ -85,7 +85,7 @@ namespace MentorBot.Tests.Integration
 
     private static void Remove<TInterface, TImplementation>(IServiceCollection services)
     {
-      var descriptor = services.SingleOrDefault(
+      var descriptor = services.Single(
           d => d.ServiceType ==
               typeof(TInterface) && d.ImplementationType == typeof(TImplementation));
       services.Remove(descriptor);
