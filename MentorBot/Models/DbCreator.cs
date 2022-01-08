@@ -8,8 +8,8 @@ namespace MentorBot.Models
     public static void EnsureDatabaseCreated(this IHost host)
     {
       using var scope = host.Services.CreateScope();
-      scope.ServiceProvider.GetRequiredService<SignalContext>()
-        .Database.EnsureCreated();
+      scope.ServiceProvider.GetRequiredService<ISignalContext>()
+        .EnsureCreated();
     }
   }
 }

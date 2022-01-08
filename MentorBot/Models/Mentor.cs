@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations;
 namespace MentorBot.Models
 {
   [Index(nameof(Token), IsUnique = true)]
-  public class Mentor
+  public record Mentor
   {
     [Key]
     public string NeosId { get; set; } = string.Empty;
@@ -16,7 +16,7 @@ namespace MentorBot.Models
     public MentorDto ToDto() => new(this);
   }
 
-  public class MentorDto
+  public record MentorDto
   {
     private readonly Mentor _mentor;
     public MentorDto(Mentor mentor)

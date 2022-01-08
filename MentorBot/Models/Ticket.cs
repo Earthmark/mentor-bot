@@ -25,7 +25,7 @@ namespace MentorBot.Models
     public string? SessionWebUrl { get; init; }
   }
 
-  public class Ticket
+  public record Ticket
   {
     public TicketStatus Status { get; set; } = TicketStatus.Requested;
     public User User { get; set; } = new User();
@@ -130,7 +130,7 @@ namespace MentorBot.Models
     public MentorTicketDto ToMentorDto() => new(this);
   }
 
-  public class TicketDto {
+  public record TicketDto {
     protected readonly Ticket _ticket;
     public TicketDto(Ticket ticket)
     {
@@ -142,13 +142,18 @@ namespace MentorBot.Models
     public TicketStatus Status => _ticket.Status;
   }
 
-  public class MentorTicketDto : TicketDto
+  public record MentorTicketDto : TicketDto
   {
     public MentorTicketDto(Ticket ticket) : base(ticket)
     {
     }
 
+    public DateTime Created => _ticket.Created;
+    public string? Lang => _ticket.Lang;
+    public string? Desc => _ticket.Desc;
+    public string? Session => _ticket.Session;
     public string? SessionId => _ticket.SessionId;
+    public string? MentorId => _ticket.Mentor?.NeosId;
     public string? UserId => _ticket.User.Id;
     public string UserName => _ticket.User.Name;
   }

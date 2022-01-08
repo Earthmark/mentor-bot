@@ -11,10 +11,12 @@ namespace MentorBot.Controllers
   public class MentorController : ControllerBase
   {
     private readonly IMentorContext _ctx;
+    private readonly ITicketContext _ticketCtx;
 
-    public MentorController(IMentorContext ctx)
+    public MentorController(IMentorContext ctx, ITicketContext ticketCtx)
     {
       _ctx = ctx;
+      _ticketCtx = ticketCtx;
     }
 
     [HttpGet]
@@ -23,16 +25,28 @@ namespace MentorBot.Controllers
       return _ctx.Mentors().Select(m => m.ToDto());
     }
 
-    [HttpGet("{neosId}")]
-    public async ValueTask<ActionResult<MentorDto?>> Get(string neosId)
+    [HttpGet("{mentorToken}")]
+    public async ValueTask<ActionResult<MentorDto?>> Get(string mentorToken)
     {
-      var mentor = await _ctx.GetMentorByNeosIdAsync(neosId, HttpContext.RequestAborted);
+      var mentor = await _ctx.GetMentorByTokenAsync(mentorToken, HttpContext.RequestAborted);
       if (mentor == null)
       {
         return NotFound();
       }
 
       return mentor.ToDto();
+    }
+
+    [HttpGet("{mentorToken}/tickets")]
+    public async ValueTask<ActionResult<IAsyncEnumerable<MentorTicketDto>>> GetTicketsAsMentor(string mentorToken)
+    {
+      var mentor = await _ctx.GetMentorByTokenAsync(mentorToken, HttpContext.RequestAborted);
+      if (mentor == null)
+      {
+        return NotFound();
+      }
+
+      return Ok(_ticketCtx.GetIncompleteTickets().Select(t => t.ToMentorDto()));
     }
 
     [HttpPost("authorize", Name = "AuthorizeMentor"), Authorize]

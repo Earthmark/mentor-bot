@@ -7,8 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
 using System;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,27 +29,17 @@ builder.Services.AddHealthChecks()
   .AddSignalHealthChecks();
 
 builder.Services.Configure<JsonOptions>(options =>
-{
-  options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
-});
-builder.Services.AddControllers().AddJsonOptions(c =>
-{
-  c.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
-});
+  options.SerializerOptions.ConfigureForMentor());
 
-builder.Services.AddAuthentication(c =>
-{
-  c.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-}).AddCookie(c =>
-{
-  c.ExpireTimeSpan = TimeSpan.FromHours(3);
-});
+builder.Services.AddControllers().AddJsonOptions(opts =>
+  opts.JsonSerializerOptions.ConfigureForMentor());
+
+builder.Services.AddAuthentication(c => c.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme)
+  .AddCookie(c => c.ExpireTimeSpan = TimeSpan.FromHours(3));
 
 builder.Services.AddRazorPages();
 
 var app = builder.Build();
-
-app.EnsureDatabaseCreated();
 
 if (!app.Environment.IsDevelopment())
 {
@@ -83,3 +71,6 @@ app.MapRazorPages();
 app.MapSwagger();
 
 app.Run();
+
+// This is needed so integration tests succeed.
+public partial class Program { }

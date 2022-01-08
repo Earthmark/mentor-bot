@@ -17,11 +17,11 @@ namespace MentorBot.Models
 
   public class MentorContext : IMentorContext
   {
-    private readonly SignalContext _ctx;
+    private readonly ISignalContext _ctx;
     private readonly INeosApi _neosApi;
     private readonly ITokenGenerator _tokenGen;
 
-    public MentorContext(SignalContext ctx, INeosApi neosApi, ITokenGenerator tokenGen)
+    public MentorContext(ISignalContext ctx, INeosApi neosApi, ITokenGenerator tokenGen)
     {
       _ctx = ctx;
       _neosApi = neosApi;
@@ -62,7 +62,7 @@ namespace MentorBot.Models
           NeosId = neosId,
           Name = mentorUser.Name,
         };
-        _ctx.Mentors.Add(mentor);
+        _ctx.Add(mentor);
       }
       mentor.Token = _tokenGen.CreateToken();
 
@@ -78,7 +78,7 @@ namespace MentorBot.Models
       if(mentor != null)
       {
         mentor.Token = null;
-        _ctx.Mentors.Update(mentor);
+        _ctx.Update(mentor);
         await _ctx.SaveChangesAsync(cancellationToken);
       }
       return mentor;

@@ -22,12 +22,12 @@ namespace MentorBot.Models
 
   public class TicketContext : ITicketContext
   {
-    private readonly SignalContext _ctx;
+    private readonly ISignalContext _ctx;
     private readonly IMentorContext _mentorCtx;
     private readonly ITicketNotifier _notifier;
     private readonly INeosApi _neosApi;
 
-    public TicketContext(SignalContext ctx, IMentorContext mentorCtx, ITicketNotifier notifier, INeosApi neosApi)
+    public TicketContext(ISignalContext ctx, IMentorContext mentorCtx, ITicketNotifier notifier, INeosApi neosApi)
     {
       _ctx = ctx;
       _mentorCtx = mentorCtx;
@@ -42,7 +42,7 @@ namespace MentorBot.Models
 
     public async ValueTask<Ticket?> GetTicketAsync(ulong ticketId, CancellationToken cancellationToken = default)
     {
-      return await _ctx.MetaTickets.SingleOrDefaultAsync(t => t.Id == ticketId, cancellationToken);
+      return await _ctx.Tickets.SingleOrDefaultAsync(t => t.Id == ticketId, cancellationToken);
     }
 
     public async ValueTask<Ticket?> CreateTicketAsync(TicketCreate createArgs, CancellationToken cancellationToken = default)
@@ -64,7 +64,7 @@ namespace MentorBot.Models
         Created = DateTime.UtcNow
       };
 
-      _ctx.Tickets.Add(ticket);
+      _ctx.Add(ticket);
       await _ctx.SaveChangesAsync(cancellationToken);
       _notifier.NotifyNewTicket(ticket);
       return ticket;
@@ -84,7 +84,7 @@ namespace MentorBot.Models
         ticket.Status = TicketStatus.Responding;
         ticket.Claimed = DateTime.UtcNow;
 
-        _ctx.Tickets.Update(ticket);
+        _ctx.Update(ticket);
         await _ctx.SaveChangesAsync(cancellationToken);
         _notifier.NotifyUpdatedTicket(ticket);
       }
@@ -104,7 +104,7 @@ namespace MentorBot.Models
         ticket.Claimed = null;
         ticket.Mentor = null;
 
-        _ctx.Tickets.Update(ticket);
+        _ctx.Update(ticket);
         await _ctx.SaveChangesAsync(cancellationToken);
         _notifier.NotifyUpdatedTicket(ticket);
       }
@@ -123,7 +123,7 @@ namespace MentorBot.Models
         ticket.Status = TicketStatus.Completed;
         ticket.Complete = DateTime.UtcNow;
 
-        _ctx.Tickets.Update(ticket);
+        _ctx.Update(ticket);
         await _ctx.SaveChangesAsync(cancellationToken);
         _notifier.NotifyUpdatedTicket(ticket);
       }
@@ -142,7 +142,7 @@ namespace MentorBot.Models
         ticket.Status = TicketStatus.Canceled;
         ticket.Canceled = DateTime.UtcNow;
 
-        _ctx.Tickets.Update(ticket);
+        _ctx.Update(ticket);
         await _ctx.SaveChangesAsync(cancellationToken);
         _notifier.NotifyUpdatedTicket(ticket);
       }
@@ -157,7 +157,7 @@ namespace MentorBot.Models
         return null;
       }
       ticket.DiscordId = discordId;
-      _ctx.Tickets.Update(ticket);
+      _ctx.Update(ticket);
       await _ctx.SaveChangesAsync(cancellationToken);
       return ticket;
     }
