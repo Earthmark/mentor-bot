@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Moq;
 using System;
@@ -33,6 +34,9 @@ namespace MentorBot.Tests.Integration
       base.ConfigureWebHost(builder);
       builder.ConfigureServices(services =>
       {
+        // Prevent discord from spinning up.
+        Remove<IHostedService, DiscordContext>(services);
+
         Replace(services, new DbContextOptionsBuilder<SignalContext>()
           .UseSqlite("Filename=integration.db").Options);
 
@@ -76,6 +80,14 @@ namespace MentorBot.Tests.Integration
       var descriptor = services.SingleOrDefault(
           d => d.ServiceType ==
               typeof(T));
+      services.Remove(descriptor);
+    }
+
+    private static void Remove<TInterface, TImplementation>(IServiceCollection services)
+    {
+      var descriptor = services.SingleOrDefault(
+          d => d.ServiceType ==
+              typeof(TInterface) && d.ImplementationType == typeof(TImplementation));
       services.Remove(descriptor);
     }
 
