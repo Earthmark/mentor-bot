@@ -26,7 +26,7 @@ namespace MentorBot.Controllers
       _jsonOpts = jsonOpts;
     }
 
-    [HttpGet, Throttle(6, Name = "WS Ticket Create")]
+    [HttpGet]
     public async ValueTask<ActionResult<TicketDto>> CreateTicket([FromQuery] TicketCreate createArgs, [FromQuery(Name = "ticket")] ulong? ticketId)
     {
       if (!HttpContext.WebSockets.IsWebSocketRequest)
@@ -49,32 +49,6 @@ namespace MentorBot.Controllers
       using var ws = await HttpContext.WebSockets.AcceptWebSocketAsync();
 
       await WatchTicket(ticketId.Value, ws, HttpContext.RequestAborted);
-
-      return new EmptyResult();
-    }
-
-    [HttpGet("{ticketId}"), Throttle(3, Name = "WS Ticket Get")]
-    public async ValueTask<ActionResult> WatchTicket(ulong ticketId)
-    {
-      if (!HttpContext.WebSockets.IsWebSocketRequest)
-      {
-        return BadRequest();
-      }
-
-      var foundTicketId = await _provider.WithScopedServiceAsync(async (ITicketContext ctx) =>
-      {
-        var ticket = 
-          await ctx.GetTicketAsync(ticketId, HttpContext.RequestAborted);
-        return ticket?.Id;
-      });
-      if (foundTicketId == null)
-      {
-        return NotFound();
-      }
-
-      using var ws = await HttpContext.WebSockets.AcceptWebSocketAsync();
-
-      await WatchTicket(ticketId, ws, HttpContext.RequestAborted);
 
       return new EmptyResult();
     }

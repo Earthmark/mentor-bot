@@ -10,17 +10,17 @@ namespace MentorBot.Controllers
   [ApiController, Route("login")]
   public class LoginController : ControllerBase
   {
-    private readonly IOptionsSnapshot<MentorOptions> _config;
+    private readonly MentorOptions _config;
 
     public LoginController(IOptionsSnapshot<MentorOptions> config)
     {
-      _config = config;
+      _config = config.Value;
     }
 
     [HttpPost(Name = "Login")]
     public async ValueTask<IActionResult> Login([FromForm, DataType(DataType.Password)] string accessToken)
     {
-      if (accessToken != _config.Value.ModifyMentorsToken)
+      if (accessToken != _config.ModifyMentorsToken)
       {
         return BadRequest();
       }

@@ -23,7 +23,7 @@ namespace MentorBot.Controllers
       _jsonOpts = jsonOpts;
     }
 
-    [HttpGet("{mentorToken}"), Throttle(3, Name = "Ticket Get")]
+    [HttpGet("{mentorToken}")]
     public async ValueTask<ActionResult> MentorWatcher([FromRoute] string mentorToken)
     {
       if (!HttpContext.WebSockets.IsWebSocketRequest)
