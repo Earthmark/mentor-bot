@@ -13,7 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 var mentorConfig = builder.Configuration.GetSection("mentors");
 builder.Services.Configure<MentorOptions>(mentorConfig);
-var options = mentorConfig.Get<MentorOptions>();
+var hasSwagger = mentorConfig.Get<MentorOptions>()?.EnableSwagger ?? false;
 
 builder.Services.AddSingleton<ITicketNotifier, TicketNotifier>();
 
@@ -25,7 +25,7 @@ builder.Services.AddSignalContexts(builder.Configuration);
 
 builder.Services.AddTransient<ITokenGenerator, TokenGenerator>();
 
-if (options.EnableSwagger)
+if (hasSwagger)
 {
   builder.Services.AddSwaggerGen(c => c.SwaggerDoc("v1", new OpenApiInfo { Title = "Mentor Signal", Version = "v1" }));
 }
@@ -65,7 +65,7 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-if (options.EnableSwagger)
+if (hasSwagger)
 {
   app.UseSwagger();
   app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Mentor Signal v1"));
@@ -80,7 +80,7 @@ app.MapHealthChecks("/health");
 app.MapControllers();
 app.MapRazorPages();
 
-if (options.EnableSwagger)
+if (hasSwagger)
 {
   app.MapSwagger();
 }

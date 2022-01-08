@@ -150,7 +150,7 @@ namespace Microsoft.Extensions.DependencyInjection
       var discordContext = config.GetSection("Discord");
       services.Configure<DiscordOptions>(discordContext);
       var options = discordContext.Get<DiscordOptions>();
-      if (!string.IsNullOrWhiteSpace(options.Token))
+      if (!string.IsNullOrWhiteSpace(options?.Token))
       {
         services.AddSingleton<DiscordContext>()
           .AddSingleton<IDiscordContext, DiscordContext>(o => o.GetRequiredService<DiscordContext>())
