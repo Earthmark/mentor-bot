@@ -11,7 +11,7 @@ namespace MentorBot.Discord
 {
   public class DiscordOptions
   {
-    public bool UpdateTickets { get; set; } = true;
+    public bool UpdateTickets { get; set; } = false;
     public string Token { get; set; } = string.Empty;
     public ulong Channel { get; set; }
   }
@@ -150,7 +150,7 @@ namespace Microsoft.Extensions.DependencyInjection
       var discordContext = config.GetSection("Discord");
       services.Configure<DiscordOptions>(discordContext);
       var options = discordContext.Get<DiscordOptions>();
-      if (!string.IsNullOrWhiteSpace(options?.Token))
+      if (options?.UpdateTickets ?? false)
       {
         services.AddSingleton<DiscordContext>()
           .AddSingleton<IDiscordContext, DiscordContext>(o => o.GetRequiredService<DiscordContext>())
