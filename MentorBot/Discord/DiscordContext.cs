@@ -147,12 +147,19 @@ namespace Microsoft.Extensions.DependencyInjection
   {
     public static IServiceCollection AddDiscordContext(this IServiceCollection services, IConfiguration config)
     {
-      return services.Configure<DiscordOptions>(config.GetSection("Discord"))
-        .AddSingleton<DiscordContext>()
-        .AddSingleton<IDiscordContext, DiscordContext>(o => o.GetRequiredService<DiscordContext>())
-        .AddHostedService<DiscordHostedServiceProxy>()
-        .AddHostedService<TicketDiscordProxyHost>()
-        .AddTransient<ITicketDiscordProxy, TicketDiscordProxy>();
+      var discordContext = config.GetSection("Discord");
+      services.Configure<DiscordOptions>(discordContext);
+      var options = discordContext.Get<DiscordOptions>();
+      if (!string.IsNullOrWhiteSpace(options.Token))
+      {
+        services.AddSingleton<DiscordContext>()
+          .AddSingleton<IDiscordContext, DiscordContext>(o => o.GetRequiredService<DiscordContext>())
+          .AddHostedService<DiscordHostedServiceProxy>()
+          .AddHostedService<TicketDiscordProxyHost>()
+          .AddTransient<ITicketDiscordProxy, TicketDiscordProxy>();
+      }
+
+      return services;
     }
 
     public static IHealthChecksBuilder AddDiscordCheck(this IHealthChecksBuilder builder)

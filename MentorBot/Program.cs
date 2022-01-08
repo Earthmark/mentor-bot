@@ -3,6 +3,7 @@ using MentorBot.Models;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Json;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
@@ -10,7 +11,9 @@ using System;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.Configure<MentorOptions>(builder.Configuration.GetSection("mentors"));
+var mentorConfig = builder.Configuration.GetSection("mentors");
+builder.Services.Configure<MentorOptions>(mentorConfig);
+var options = mentorConfig.Get<MentorOptions>();
 
 builder.Services.AddSingleton<ITicketNotifier, TicketNotifier>();
 
@@ -22,7 +25,10 @@ builder.Services.AddSignalContexts(builder.Configuration);
 
 builder.Services.AddTransient<ITokenGenerator, TokenGenerator>();
 
-builder.Services.AddSwaggerGen(c => c.SwaggerDoc("v1", new OpenApiInfo { Title = "Mentor Signal", Version = "v1" }));
+if (options.EnableSwagger)
+{
+  builder.Services.AddSwaggerGen(c => c.SwaggerDoc("v1", new OpenApiInfo { Title = "Mentor Signal", Version = "v1" }));
+}
 
 builder.Services.AddHealthChecks()
   .AddDiscordCheck()
@@ -41,6 +47,8 @@ builder.Services.AddRazorPages();
 
 var app = builder.Build();
 
+app.EnsureDatabaseCreated();
+
 if (!app.Environment.IsDevelopment())
 {
   app.UseExceptionHandler("/error");
@@ -57,8 +65,11 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.UseSwagger();
-app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Mentor Signal v1"));
+if (options.EnableSwagger)
+{
+  app.UseSwagger();
+  app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Mentor Signal v1"));
+}
 
 app.UseWebSockets(new WebSocketOptions
 {
@@ -68,7 +79,11 @@ app.UseWebSockets(new WebSocketOptions
 app.MapHealthChecks("/health");
 app.MapControllers();
 app.MapRazorPages();
-app.MapSwagger();
+
+if (options.EnableSwagger)
+{
+  app.MapSwagger();
+}
 
 app.Run();
 
