@@ -107,7 +107,6 @@ namespace MentorBot.Tests.Integration
 
         await mentor.SendAsync($"ticket={ticket}&type=complete");
 
-        await mentee.SendAsync("type=cancel");
         var msg3 = await mentee.ReadAsync();
         Assert.Equal(3, msg3.Count);
         Assert.Equal(ticket, Assert.Contains("ticket", msg3));
