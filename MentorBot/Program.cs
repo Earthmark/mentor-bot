@@ -48,6 +48,8 @@ var app = builder.Build();
 
 app.EnsureDatabaseCreated();
 
+app.MapHealthChecks("/health");
+
 if (!app.Environment.IsDevelopment())
 {
   app.UseExceptionHandler("/error");
@@ -58,8 +60,6 @@ else
 {
   app.UseDeveloperExceptionPage();
 }
-
-app.UseRouting();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -75,7 +75,6 @@ app.UseWebSockets(new WebSocketOptions
   KeepAliveInterval = TimeSpan.FromSeconds(30)
 });
 
-app.MapHealthChecks("/health");
 app.MapControllers();
 app.MapRazorPages();
 
