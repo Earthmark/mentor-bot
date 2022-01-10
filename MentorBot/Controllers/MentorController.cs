@@ -1,6 +1,7 @@
 ﻿using MentorBot.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -12,11 +13,13 @@ namespace MentorBot.Controllers
   {
     private readonly IMentorContext _ctx;
     private readonly ITicketContext _ticketCtx;
+    private readonly MentorOptions _options;
 
-    public MentorController(IMentorContext ctx, ITicketContext ticketCtx)
+    public MentorController(IMentorContext ctx, ITicketContext ticketCtx, IOptionsSnapshot<MentorOptions> options)
     {
       _ctx = ctx;
       _ticketCtx = ticketCtx;
+      _options = options.Value;
     }
 
     [HttpGet]
@@ -52,6 +55,11 @@ namespace MentorBot.Controllers
     [HttpPost("authorize", Name = "AuthorizeMentor"), Authorize]
     public async ValueTask<ActionResult<MentorDto?>> AuthorizeMentor([FromForm]string neosId)
     {
+      if (string.IsNullOrEmpty(_options.ModifyMentorsToken))
+      {
+        return Forbid();
+      }
+
       var mentor = await _ctx.AddMentorAsync(neosId, HttpContext.RequestAborted);
       if (mentor == null)
       {
@@ -64,6 +72,11 @@ namespace MentorBot.Controllers
     [HttpPost("unauthorize", Name = "UnauthorizeMentor"), Authorize]
     public async ValueTask<ActionResult<MentorDto?>> UnauthorizeMentor([FromForm] string neosId)
     {
+      if (string.IsNullOrEmpty(_options.ModifyMentorsToken))
+      {
+        return Forbid();
+      }
+
       var mentor = await _ctx.RemoveMentorAccess(neosId, HttpContext.RequestAborted);
       if (mentor == null)
       {
