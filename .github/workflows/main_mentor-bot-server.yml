@@ -25,6 +25,9 @@ jobs:
       - name: Build with dotnet
         run: dotnet build --configuration Release
 
+      - name: Build with dotnet
+        run: dotnet test --configuration Release
+
       - name: dotnet publish
         run: dotnet publish MentorBot -c Release -o ${{env.DOTNET_ROOT}}/myapp
 

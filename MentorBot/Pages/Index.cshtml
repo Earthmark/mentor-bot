@@ -1,10 +1,12 @@
 ﻿@page
 @using System.Security.Claims
 @inject MentorBot.Models.IMentorContext ctx
+@inject Microsoft.Extensions.Options.IOptionsSnapshot<MentorBot.MentorOptions> options
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 
 @{
   var loggedIn = HttpContext.User.Identity?.IsAuthenticated ?? false;
+  var showChangeable = !string.IsNullOrWhiteSpace(options.Value.ModifyMentorsToken);
 }
 
 <!DOCTYPE html>
@@ -47,7 +49,7 @@
   <nav class="navbar fixed-top navbar-expand-lg navbar-light bg-light">
     <div class="container-fluid">
       <a class="navbar-brand" href="#">Mentor-Bot</a>
-      @if (!loggedIn)
+      @if (!loggedIn && showChangeable)
       {
         <form class="d-flex" method="post" asp-controller="Login" asp-action="login">
           <input type="password" name="accessToken" class="form-control me-2" placeholder="Lead Access Token" aria-label="Access token" />
@@ -68,7 +70,7 @@
               <tr>
                 <th scope="col">Name</th>
                 <th scope="col">Can claim tickets</th>
-                @if (loggedIn)
+                @if (loggedIn && showChangeable)
                 {
                   <th scope="col">Modify Access</th>
                 }
@@ -81,7 +83,7 @@
                 <tr>
                   <td>@mentor.Name</td>
                   <td>@(mentor.InProgram ? "Yes" : "No")</td>
-                  @if (loggedIn)
+                  @if (loggedIn && showChangeable)
                   {
                     <td>
                       <form class="d-flex" method="post" onsubmit="return sendRequest(event)" asp-controller="Mentor" asp-action="@(mentor.InProgram ? "UnauthorizeMentor" : "AuthorizeMentor")">
@@ -95,7 +97,7 @@
             </tbody>
           </table>
         </div>
-        @if (loggedIn)
+        @if (loggedIn && showChangeable)
         {
           <div class="modal-footer">
             <form class="input-group" onsubmit="return sendRequest(event)" id="addMentorForm" method="post" asp-controller="Mentor" asp-action="AuthorizeMentor">
