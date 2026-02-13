@@ -1,23 +1,16 @@
-﻿using Microsoft.Extensions.Diagnostics.HealthChecks;
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace MentorBot.Discord
+namespace MentorBot.Discord;
+
+public class DiscordHealthCheck(IDiscordContext ctx) : IHealthCheck
 {
-  public class DiscordHealthCheck : IHealthCheck
-  {
-    private readonly IDiscordContext _ctx;
-
-    public DiscordHealthCheck(IDiscordContext ctx)
+    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context,
+        CancellationToken cancellationToken = default)
     {
-      _ctx = ctx;
+        return Task.FromResult(ctx.ConnectedAndReady
+            ? HealthCheckResult.Healthy("Discord service is ready and bound.")
+            : HealthCheckResult.Unhealthy("Discord bot api has disconnected."));
     }
-
-    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
-    {
-      return Task.FromResult(_ctx.ConnectedAndReady ?
-        HealthCheckResult.Healthy("Discord service is ready and bound.") :
-        HealthCheckResult.Unhealthy("Discord bot api has disconnected."));
-    }
-  }
 }
