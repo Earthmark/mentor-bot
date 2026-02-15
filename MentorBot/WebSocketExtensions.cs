@@ -8,68 +8,60 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace MentorBot
+namespace MentorBot;
+
+public static class WebSocketExtensions
 {
-  public static class WebSocketExtensions
-  {
-    public static async IAsyncEnumerable<string> ReadRawMessages(this WebSocket socket, [EnumeratorCancellation] CancellationToken cancelToken = default)
+    public static async IAsyncEnumerable<string> ReadRawMessages(this WebSocket socket,
+        [EnumeratorCancellation] CancellationToken cancelToken = default)
     {
-      var buffer = new byte[1024 * 4];
-      WebSocketReceiveResult result;
-      do
-      {
-        using var memStream = new MemoryStream();
-        do
+        while (socket.State != WebSocketState.Open)
         {
-          result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), cancelToken);
-          memStream.Write(buffer, 0, result.Count);
-        } while (result.MessageType != WebSocketMessageType.Close && !result.EndOfMessage);
-        if (result.MessageType != WebSocketMessageType.Close)
-        {
-          yield return Encoding.UTF8.GetString(memStream.GetBuffer(), 0, (int)memStream.Length);
+            await using var reader = WebSocketStream.CreateReadableMessageStream(socket);
+            using var textReader = new StreamReader(reader, Encoding.UTF8);
+            yield return await textReader.ReadToEndAsync(cancelToken);
         }
-      } while (result.MessageType != WebSocketMessageType.Close);
     }
 
-    public static async IAsyncEnumerable<T> ReadMessages<T>(this WebSocket socket, JsonSerializerOptions? serializerOptions = null, [EnumeratorCancellation] CancellationToken cancelToken = default)
+    public static async IAsyncEnumerable<T> ReadMessages<T>(this WebSocket socket,
+        JsonSerializerOptions? serializerOptions = null,
+        [EnumeratorCancellation] CancellationToken cancelToken = default)
     {
-      await foreach (var message in ReadRawMessages(socket, cancelToken))
-      {
-        var resp = UrlEncoder.Decode<T>(message, serializerOptions);
-        if (resp != null)
+        await foreach (var message in socket.ReadRawMessages(cancelToken))
         {
-          yield return resp;
+            var resp = UrlEncoder.Decode<T>(message, serializerOptions);
+            if (resp != null) yield return resp;
         }
-      }
     }
 
-    public static Func<string, Task> RawMessageSender(this WebSocket socket, CancellationToken cancellationToken = default)
+    public static Func<string, Task> RawMessageSender(this WebSocket socket,
+        CancellationToken cancellationToken = default)
     {
-      Task t = Task.CompletedTask;
+        var t = Task.CompletedTask;
 
-      async Task NextSequenced(Func<Task> action)
-      {
-        var tcs = new TaskCompletionSource();
-        try
+        async Task NextSequenced(Func<Task> action)
         {
-          await Interlocked.Exchange(ref t, tcs.Task);
+            var tcs = new TaskCompletionSource();
+            try
+            {
+                await Interlocked.Exchange(ref t, tcs.Task);
 
-          await action();
+                await action();
+            }
+            finally
+            {
+                tcs.SetResult();
+            }
         }
-        finally
-        {
-          tcs.SetResult();
-        }
-      }
 
-      return msg => NextSequenced(() =>
-        socket.SendAsync(Encoding.UTF8.GetBytes(msg), WebSocketMessageType.Text, true, cancellationToken));
+        return msg => NextSequenced(() =>
+            socket.SendAsync(Encoding.UTF8.GetBytes(msg), WebSocketMessageType.Text, true, cancellationToken));
     }
 
-    public static Func<T, Task> MessageSender<T>(this WebSocket socket, JsonSerializerOptions? serializerOptions = null, CancellationToken cancellationToken = default)
+    public static Func<T, Task> MessageSender<T>(this WebSocket socket, JsonSerializerOptions? serializerOptions = null,
+        CancellationToken cancellationToken = default)
     {
-      var sender = RawMessageSender(socket, cancellationToken);
-      return obj => sender(obj != null ? UrlEncoder.Encode(obj, serializerOptions) : "");
+        var sender = socket.RawMessageSender(cancellationToken);
+        return obj => sender(obj != null ? UrlEncoder.Encode(obj, serializerOptions) : "");
     }
-  }
 }

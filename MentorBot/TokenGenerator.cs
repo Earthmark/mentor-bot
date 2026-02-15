@@ -1,18 +1,17 @@
-﻿using Microsoft.AspNetCore.WebUtilities;
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
+using Microsoft.AspNetCore.WebUtilities;
 
-namespace MentorBot
+namespace MentorBot;
+
+public interface ITokenGenerator
 {
-  public interface ITokenGenerator
-  {
     public string CreateToken();
-  }
+}
 
-  public class TokenGenerator : ITokenGenerator
-  {
+public class TokenGenerator : ITokenGenerator
+{
     public string CreateToken()
     {
-      return Base64UrlTextEncoder.Encode(RandomNumberGenerator.GetBytes(45));
+        return Base64UrlTextEncoder.Encode(RandomNumberGenerator.GetBytes(45));
     }
-  }
 }
